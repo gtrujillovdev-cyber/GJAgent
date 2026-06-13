@@ -1,0 +1,52 @@
+{
+  "agent_metadata": {
+    "version": "1.0.0",
+    "name": "Job Application Subagent Blueprint"
+  },
+  "targeting": {
+    "job_portals": ["LinkedIn", "Indeed", "Glassdoor"],
+    "target_roles": [
+      "Senior Software Engineer",
+      "AI Engineer",
+      "Agentic AI Engineer",
+      "Backend Engineer",
+      "Machine Learning Engineer"
+    ],
+    "target_locations": ["San Francisco, CA", "Remote (US)", "Hybrid - San Francisco"]
+  },
+  "filtering_rules": {
+    "minimum_salary_usd": 130000,
+    "forbidden_keywords": [
+      "No sponsor",
+      "Requires Security Clearance",
+      "Internship",
+      "Junior",
+      "Entry Level"
+    ],
+    "experience_years_range": {
+      "min": 4,
+      "max": 12
+    }
+  },
+  "dynamic_resume_routing": {
+    "rules": [
+      {
+        "role_regex": "(?i)(ai|agent|agentic|machine learning|ml|llm)",
+        "resume_path": "profiles/resume_ai_specialist.json",
+        "cover_letter_tone": "highly-technical-and-innovative"
+      },
+      {
+        "role_regex": "(?i)(backend|software engineer|systems|golang|python)",
+        "resume_path": "profiles/resume_backend_engineer.json",
+        "cover_letter_tone": "infrastructure-and-performance-focused"
+      }
+    ],
+    "default_resume_path": "profiles/resume_template.json",
+    "default_cover_letter_tone": "balanced-professional"
+  },
+  "safety_and_verification": {
+    "human_in_the_loop_threshold": 0.85,
+    "require_approval_before_submission": true,
+    "auto_submit_confidence_threshold": 0.95
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "monitoring_setup": {
+    "enable_slack_notifications": true,
+    "log_level": "INFO",
+    "checkpoint_retention_days": 14,
+    "health_check_interval_seconds": 3600
+  },
+  "metrics": {
+    "track_application_success_rate": true,
+    "track_token_usage": true,
+    "track_execution_time": true
+  },
+  "alerts": {
+    "notify_on_auth_failure": true,
+    "notify_on_high_captcha_rate": true,
+    "captcha_max_threshold_per_hour": 5
+  }
+}

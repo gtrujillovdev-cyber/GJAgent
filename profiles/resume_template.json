@@ -1,0 +1,58 @@
+{
+  "personal_info": {
+    "full_name": "[First Name] [Last Name]",
+    "email": "candidate.email@example.com",
+    "phone": "+1-555-0199",
+    "location": {
+      "city": "San Francisco",
+      "state": "CA",
+      "country": "United States",
+      "postal_code": "94105"
+    },
+    "links": {
+      "github": "https://github.com/example-username",
+      "linkedin": "https://linkedin.com/in/example-profile",
+      "portfolio": "https://example-portfolio.dev"
+    }
+  },
+  "professional_summary": "Results-driven Senior Software Engineer and AI Specialist with 5+ years of experience designing scalable agentic workflows, building distributed microservices, and integrating advanced LLMs (Gemini, Claude) into production. Proven track record of automating complex web workflows and optimizing system architectures.",
+  "work_experience": [
+    {
+      "company": "TechInnovate Solutions",
+      "role": "Senior AI Systems Engineer",
+      "start_date": "2023-01",
+      "end_date": "Present",
+      "highlights": [
+        "Architected an agentic web navigation framework using Gemini 2.5 and Playwright, reducing data collection workflow latency by 45%.",
+        "Led a team of 3 engineers to develop real-time LLM-orchestrated scrapers resolving complex dynamic DOM shifts dynamically.",
+        "Deployed scalable vector search systems (Qdrant) processing over 10M records daily with semantic filtering."
+      ]
+    },
+    {
+      "company": "CloudScale Corp",
+      "role": "Software Engineer II (Backend / Infrastructure)",
+      "start_date": "2021-03",
+      "end_date": "2022-12",
+      "highlights": [
+        "Designed and maintained Go-based microservices executing 50,000+ API requests per second with 99.99% uptime.",
+        "Migrated legacy monolithic job scheduling queue to RabbitMQ and Redis, boosting throughput by 300%."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "University of Technology",
+      "degree": "Bachelor of Science in Computer Science",
+      "graduation_year": "2020"
+    }
+  ],
+  "skills": {
+    "languages": ["Python", "Golang", "TypeScript", "JavaScript", "SQL", "Bash"],
+    "frameworks_and_tools": ["FastAPI", "Express", "Node.js", "Docker", "Kubernetes", "PostgreSQL", "Redis", "RabbitMQ"],
+    "ai_and_agents": ["Google GenAI SDK", "LangChain", "LlamaIndex", "Vector Databases", "Playwright", "Puppeteer"]
+  },
+  "certifications": [
+    "Google Cloud Professional Cloud Architect",
+    "TensorFlow Developer Certificate"
+  ]
+}
