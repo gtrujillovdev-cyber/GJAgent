@@ -141,11 +141,9 @@ class GeminiJobAgent:
         """
         Uses Gemini's reasoning capabilities to evaluate whether a job posting matches criteria.
         """
-        # Clean HTML to prevent passing excess token overhead to Gemini
         clean_html = re.sub(r'<script.*?</script>', '', page_html, flags=re.DOTALL)
         clean_html = re.sub(r'<style.*?</style>', '', clean_html, flags=re.DOTALL)
         clean_html = re.sub(r'<svg.*?</svg>', '', clean_html, flags=re.DOTALL)
-        # Keep only basic structural tags or body text
         body_match = re.search(r'<body.*?>.*?</body>', clean_html, flags=re.DOTALL | re.IGNORECASE)
         if body_match:
             clean_html = body_match.group(0)
@@ -159,17 +157,21 @@ class GeminiJobAgent:
         Job HTML Content:
         \"\"\"{clean_html}\"\"\"
         
-        Applicant Blueprint:
-        {json.dumps(blueprint, indent=2)}
+        Applicant Blueprint targeting:
+        {json.dumps(blueprint.get("filtering_rules", {}), indent=2)}
         
         Return a JSON response matching the following structure:
         {{
           "is_match": true/false,
           "match_confidence": 0.0 to 1.0,
-          "reason": "Detailed description explaining how it matches or why it was skipped",
+          "reason": "Detailed description explaining match status, highlighting presence of target keywords and salary alignment",
           "detected_title": "Identified job role",
           "detected_salary": "Identified salary details or 'Not Specified'"
         }}
+        
+        Important Matching Rules:
+        - Analyze the salary and convert currencies if they differ (e.g. convert USD to EUR at approx 1 USD = 0.93 EUR, or vice versa, to evaluate the minimum salary threshold).
+        - Verify if at least one or more of the specified "target_keywords" are represented in the job post (prioritize jobs carrying these keywords).
         """
         
         try:
@@ -178,7 +180,7 @@ class GeminiJobAgent:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    system_instruction="You are an expert AI recruiting systems specialist. Analyze the job posting and extract information accurately, strictly adhering to the JSON schema output."
+                    system_instruction="You are an expert AI recruiting systems specialist. Analyze the job posting, handle currency evaluation, check target keywords, and output structured JSON."
                 )
             )
             return json.loads(response.text.strip())
@@ -196,7 +198,6 @@ class GeminiJobAgent:
         """
         Submits form fields by finding selectors dynamically via Gemini mapping.
         """
-        # If resume_data is a dict, convert it to formatted string for Gemini prompt
         resume_str = json.dumps(resume_data, indent=2) if isinstance(resume_data, dict) else str(resume_data)
 
         prompt = f"""
@@ -245,7 +246,7 @@ class GeminiJobAgent:
 
 def run_pipeline(url: str, headless: bool, blueprint_path: str, user_data_dir: str, cv_path: str) -> List[str]:
     """
-    Main orchestrator execution pipeline using Playwright. Returns log history logs.
+    Main orchestrator execution pipeline using Playwright. Returns log history.
     """
     engine = PlaywrightBrowserEngine(headless=headless, user_data_dir=user_data_dir)
     engine.log("Starting production pipeline execution...")
@@ -286,7 +287,6 @@ def run_pipeline(url: str, headless: bool, blueprint_path: str, user_data_dir: s
                 engine.log("Invalid JSON format in resume profile.")
                 return engine.log_history
     else:
-        # Fallback to plain text reader
         with open(cv_path, "r", encoding="utf-8", errors="ignore") as f:
             resume_data = f.read()
 

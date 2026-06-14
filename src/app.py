@@ -2,7 +2,7 @@
 """
 FastAPI Server backend for the GeminiJobBot Settings Dashboard.
 Manages configurations, handles resume file uploads (PDF, TXT, JSON),
-and runs the agent automation pipeline.
+updates environment files, and runs the agent automation pipeline.
 """
 
 import os
@@ -12,6 +12,7 @@ from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
 # Import pipeline executor
 from src.orchestrator import run_pipeline
@@ -20,6 +21,7 @@ app = FastAPI(title="GeminiJobBot Dashboard API")
 
 PROFILES_DIR = "./profiles"
 BLUEPRINT_PATH = "./blueprints/candidate_spec.json"
+ENV_PATH = "./.env"
 
 # Ensure directories exist
 os.makedirs(PROFILES_DIR, exist_ok=True)
@@ -27,14 +29,19 @@ os.makedirs(os.path.dirname(BLUEPRINT_PATH), exist_ok=True)
 
 
 class SearchConfigUpdate(BaseModel):
-    minimum_salary_usd: int
+    minimum_salary: int
+    currency: str
     experience_years_range: Dict[str, int]
-    forbidden_keywords: List[str]
+    target_keywords: List[str]
 
 
 class RunAgentRequest(BaseModel):
     url: str
     cv_path: str
+
+
+class ApiKeyUpdate(BaseModel):
+    gemini_api_key: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -55,12 +62,12 @@ def get_config():
     Reads the current candidate specifications blueprint.
     """
     if not os.path.exists(BLUEPRINT_PATH):
-        # Create a default if missing
         default_config = {
             "targeting": {"job_portals": ["LinkedIn", "Indeed"]},
             "filtering_rules": {
-                "minimum_salary_usd": 130000,
-                "forbidden_keywords": ["Junior", "Internship"],
+                "minimum_salary": 130000,
+                "currency": "EUR",
+                "target_keywords": ["AI", "Python", "Playwright"],
                 "experience_years_range": {"min": 4, "max": 12}
             },
             "dynamic_resume_routing": {
@@ -88,9 +95,10 @@ def update_config(config: SearchConfigUpdate):
         full_spec = json.load(f)
 
     # Merge updates
-    full_spec["filtering_rules"]["minimum_salary_usd"] = config.minimum_salary_usd
+    full_spec["filtering_rules"]["minimum_salary"] = config.minimum_salary
+    full_spec["filtering_rules"]["currency"] = config.currency
     full_spec["filtering_rules"]["experience_years_range"] = config.experience_years_range
-    full_spec["filtering_rules"]["forbidden_keywords"] = config.forbidden_keywords
+    full_spec["filtering_rules"]["target_keywords"] = config.target_keywords
 
     with open(BLUEPRINT_PATH, "w") as f:
         json.dump(full_spec, f, indent=2)
@@ -116,8 +124,7 @@ def list_cvs():
 @app.post("/api/cvs/upload")
 def upload_cv(file: UploadFile = File(...)):
     """
-    Saves an uploaded CV (PDF, TXT, or JSON) directly into the profiles directory
-    so that Gemini can use it as a data guide.
+    Saves an uploaded CV (PDF, TXT, or JSON) directly into the profiles directory.
     """
     ext = file.filename.split('.')[-1].lower()
     if ext not in ["pdf", "txt", "json"]:
@@ -132,20 +139,71 @@ def upload_cv(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"File save error: {str(e)}")
 
 
+@app.get("/api/apikey")
+def get_api_key():
+    """
+    Fetches the loaded Gemini API Key masked for security, if configured.
+    """
+    load_dotenv()
+    key = os.getenv("GEMINI_API_KEY", "")
+    if len(key) > 8:
+        masked = key[:4] + "..." + key[-4:]
+    else:
+        masked = "Not Configured"
+    return {"gemini_api_key": masked}
+
+
+@app.post("/api/apikey")
+def update_api_key(payload: ApiKeyUpdate):
+    """
+    Updates the GEMINI_API_KEY environment variable and writes it back to the local .env file.
+    """
+    key_val = payload.gemini_api_key.strip()
+    if not key_val:
+        raise HTTPException(status_code=400, detail="API key cannot be empty.")
+
+    # Read existing .env lines
+    lines = []
+    found = False
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, "r") as f:
+            lines = f.readlines()
+
+    # Reconstruct lines
+    new_lines = []
+    for line in lines:
+        if line.strip().startswith("GEMINI_API_KEY="):
+            new_lines.append(f"GEMINI_API_KEY={key_val}\n")
+            found = True
+        else:
+            new_lines.append(line)
+
+    if not found:
+        new_lines.append(f"GEMINI_API_KEY={key_val}\n")
+
+    with open(ENV_PATH, "w") as f:
+        f.writelines(new_lines)
+
+    # Set in running process environment
+    os.environ["GEMINI_API_KEY"] = key_val
+    # Reload dotenv to align config
+    load_dotenv()
+
+    return {"status": "success", "message": "API Key updated successfully."}
+
+
 @app.post("/api/run")
 def run_agent(req: RunAgentRequest):
     """
     Triggers the Playwright + Gemini agent loop.
     """
-    # Check if files exist
     if not os.path.exists(req.cv_path):
         raise HTTPException(status_code=400, detail=f"The selected CV path '{req.cv_path}' does not exist.")
 
     try:
-        # Run pipeline
         logs = run_pipeline(
             url=req.url,
-            headless=True,  # Headless mode when run via web dashboard api
+            headless=True,
             blueprint_path=BLUEPRINT_PATH,
             user_data_dir="./.browser_session",
             cv_path=req.cv_path
