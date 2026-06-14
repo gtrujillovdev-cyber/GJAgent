@@ -302,7 +302,7 @@
     </header>
 
     <main>
-        <!-- Left Column: Params & Configuration -->
+        <!-- Left Column: Credentials & Console Logs -->
         <div class="left-column">
             <!-- Credentials API Key -->
             <section class="card">
@@ -316,6 +316,15 @@
                 </div>
             </section>
 
+            <!-- Console Log -->
+            <section class="card card-stretch">
+                <h2 id="title-console">Execution Console Logs</h2>
+                <div class="console-log" id="console"></div>
+            </section>
+        </div>
+
+        <!-- Right Column: Params & Configuration -->
+        <div class="right-column">
             <!-- Search Settings -->
             <section class="card card-stretch">
                 <h2 id="title-settings">Search & Filtering Criteria</h2>
@@ -379,39 +388,30 @@
                     <input type="text" id="target-keywords" value="Linux, QA, SDET, Python, Docker, Bash, Swift, LangChain, CI/CD, Automation, Testing">
                 </div>
 
-                <div class="row-flex" style="margin-top: auto;">
-                    <button class="btn btn-secondary" style="flex: 1;" id="btn-save-cfg" onclick="saveSettings()">Save Configuration</button>
+                <!-- Integrated Candidate Resume Profiles -->
+                <div style="border-top: 1px solid var(--border-color); padding-top: 0.8rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                    <h2 id="title-profiles" style="font-size: 1.1rem; font-weight: 600; border-left: 3px solid var(--primary); padding-left: 0.6rem;">Candidate Resume Profiles</h2>
+                    
+                    <div class="row-flex" style="align-items: flex-end; gap: 0.8rem;">
+                        <div class="form-group" style="flex: 1.5;">
+                            <label id="lbl-activecv" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Active CV Guide File</label>
+                            <select id="active-cv" style="padding: 0.6rem 0.8rem; font-size: 0.85rem;">
+                                <option value="auto">🤖 AI Dynamic Routing (Multi-profile)</option>
+                            </select>
+                        </div>
+                        <div class="cv-upload-zone" onclick="document.getElementById('cv-file-input').click()" style="flex: 1; padding: 0.5rem 0.8rem; border-radius: 10px; border: 2px dashed var(--border-color); font-size: 0.75rem;">
+                            <input type="file" id="cv-file-input" style="display: none;" onchange="uploadCV(event)">
+                            <p id="lbl-dragtext" style="font-weight: 600; margin: 0;">Upload CV PDF/TXT</p>
+                            <p id="lbl-clicktext" style="font-size: 0.65rem; color: var(--text-muted); margin: 0;">Click to browse</p>
+                        </div>
+                    </div>
+                    <div class="cv-list" id="cv-items-container" style="max-height: 80px; display: flex; flex-direction: column; gap: 0.4rem; overflow-y: auto;"></div>
+                </div>
+
+                <div class="row-flex" style="margin-top: auto; padding-top: 0.8rem; border-top: 1px solid var(--border-color);">
+                    <button class="btn btn-secondary" style="flex: 1; background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-color);" id="btn-save-cfg" onclick="saveSettings()">Save Configuration</button>
                     <button class="btn" style="flex: 1.5;" id="btn-run" onclick="runAgent()">Start Automation Loop</button>
                 </div>
-            </section>
-        </div>
-
-        <!-- Right Column: Profile & Console Logs -->
-        <div class="right-column">
-            <!-- Profile / CV Upload -->
-            <section class="card">
-                <h2 id="title-profiles">Candidate Resume Profiles</h2>
-                
-                <div class="form-group">
-                    <label id="lbl-activecv">Active CV Guide File</label>
-                    <select id="active-cv">
-                        <option value="auto">🤖 AI Dynamic Routing (Multi-profile)</option>
-                    </select>
-                </div>
-
-                <div class="cv-list" id="cv-items-container"></div>
-
-                <div class="cv-upload-zone" onclick="document.getElementById('cv-file-input').click()">
-                    <input type="file" id="cv-file-input" style="display: none;" onchange="uploadCV(event)">
-                    <p id="lbl-dragtext" style="font-weight: 600;">Drag PDF / TXT CV here</p>
-                    <p id="lbl-clicktext" style="font-size: 0.75rem; color: var(--text-muted);">Or click to browse from system</p>
-                </div>
-            </section>
-
-            <!-- Console Log -->
-            <section class="card card-stretch">
-                <h2 id="title-console">Execution Console Logs</h2>
-                <div class="console-log" id="console"></div>
             </section>
         </div>
     </main>

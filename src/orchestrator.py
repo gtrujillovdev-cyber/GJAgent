@@ -184,12 +184,57 @@ class GeminiJobAgent:
             raise ValueError("API Key for Gemini must be provided.")
         self.model_name = model_name
         self.client = genai.Client(api_key=api_key)
+        self._keywords_cache = {}
+
+    def _generate_content_with_retry(
+        self,
+        contents: str,
+        system_instruction: str = None,
+        response_mime_type: str = "application/json",
+        max_retries: int = 5,
+        initial_delay: float = 2.0
+    ) -> Any:
+        import time
+        import random
+        delay = initial_delay
+        for attempt in range(max_retries):
+            try:
+                config = types.GenerateContentConfig(
+                    response_mime_type=response_mime_type,
+                    system_instruction=system_instruction
+                )
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=contents,
+                    config=config
+                )
+                return response
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    if attempt == max_retries - 1:
+                        logger.error(f"Gemini API rate limit exceeded. Max retries ({max_retries}) reached. Error: {e}")
+                        raise
+                    jitter = random.uniform(0.8, 1.2)
+                    sleep_time = delay * jitter
+                    logger.warning(f"Gemini API 429 Rate Limit hit. Retrying in {sleep_time:.2f} seconds (Attempt {attempt+1}/{max_retries})...")
+                    time.sleep(sleep_time)
+                    delay *= 2.0
+                else:
+                    logger.error(f"Gemini API call failed with non-retryable error: {e}")
+                    raise
 
     def extract_keywords_from_cv(self, resume_data: Union[Dict[str, Any], str]) -> List[str]:
         """
         Asks Gemini to read the candidate CV and extract key professional skills/keywords.
         """
         resume_str = json.dumps(resume_data, indent=2) if isinstance(resume_data, dict) else str(resume_data)
+        import hashlib
+        cache_key = hashlib.md5(resume_str.encode('utf-8')).hexdigest()
+        if cache_key in self._keywords_cache:
+            logger.info("Retrieved CV keywords from cache.")
+            return self._keywords_cache[cache_key]
+
         prompt = f"""
         Read the following candidate CV and extract a list of the top 15 core technical keywords, 
         technologies, skills, programming languages, or frameworks that define this profile.
@@ -203,17 +248,14 @@ class GeminiJobAgent:
         }}
         """
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
+            response = self._generate_content_with_retry(
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    system_instruction="You are an expert AI talent acquisition system. Extract core technical keywords from resumes."
-                )
+                system_instruction="You are an expert AI talent acquisition system. Extract core technical keywords from resumes."
             )
             data = json.loads(response.text.strip())
             keywords = data.get("keywords", [])
             logger.info(f"Dynamically extracted keywords from CV: {keywords}")
+            self._keywords_cache[cache_key] = keywords
             return keywords
         except Exception as e:
             logger.error(f"Error dynamically extracting keywords from CV: {e}")
@@ -244,13 +286,9 @@ class GeminiJobAgent:
         }}
         """
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
+            response = self._generate_content_with_retry(
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    system_instruction="You are an expert recruitment router. Compare job requisitions with multiple CVs and choose the best matching file."
-                )
+                system_instruction="You are an expert recruitment router. Compare job requisitions with multiple CVs and choose the best matching file."
             )
             data = json.loads(response.text.strip())
             selected = data.get("selected_filename", "")
@@ -301,13 +339,9 @@ class GeminiJobAgent:
         """
         
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
+            response = self._generate_content_with_retry(
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    system_instruction="You are an expert AI recruiting systems specialist. Analyze the job posting, handle currency evaluation, check target CV keywords, and output structured JSON."
-                )
+                system_instruction="You are an expert AI recruiting systems specialist. Analyze the job posting, handle currency evaluation, check target CV keywords, and output structured JSON."
             )
             return json.loads(response.text.strip())
         except Exception as e:
@@ -344,13 +378,9 @@ class GeminiJobAgent:
         }}
         """
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
+            response = self._generate_content_with_retry(
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    system_instruction="Map the candidate details to the correct form inputs. Return only CSS selectors present in the DOM snippet."
-                )
+                system_instruction="Map the candidate details to the correct form inputs. Return only CSS selectors present in the DOM snippet."
             )
             mapping = json.loads(response.text.strip())
             actions = mapping.get("actions", [])
@@ -430,6 +460,9 @@ def run_bulk_pipeline(
         engine.log("No valid candidate profiles found in './profiles'. Aborting.")
         return engine.log_history
 
+    agent = GeminiJobAgent(api_key=api_key, model_name=model_name)
+    applied_count = 0
+
     is_auto_routing = cv_path == "auto" or cv_path == "all" or not cv_path
     selected_cv = cv_path if not is_auto_routing else list(profiles_dict.keys())[0]
     
@@ -440,9 +473,6 @@ def run_bulk_pipeline(
     else:
         engine.log("AI Auto-Routing enabled. The agent will compare job postings against all CV profiles in the folder dynamically.")
         cv_keywords = []
-        
-    applied_count = 0
-    agent = GeminiJobAgent(api_key=api_key, model_name=model_name)
     
     try:
         engine.start()
