@@ -20,11 +20,11 @@
     ],
     "target_locations": [
       "Sevilla",
-      "España",
+      "Espa\u00f1a",
       "Madrid",
       "Barcelona",
       "Remote (Europe)",
-      "Remoto (España)"
+      "Remoto (Espa\u00f1a)"
     ]
   },
   "filtering_rules": {
@@ -45,7 +45,7 @@
     ],
     "experience_years_range": {
       "min": 0,
-      "max": 10
+      "max": 1
     }
   },
   "dynamic_resume_routing": {

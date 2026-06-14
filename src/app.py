@@ -2,20 +2,20 @@
 """
 FastAPI Server backend for the GeminiJobBot Settings Dashboard.
 Manages configurations, handles resume file uploads (PDF, TXT, JSON),
-updates environment files, and runs the agent bulk search automation pipeline.
+updates environment files, and runs the agent bulk search automation pipeline asynchronously.
 """
 
 import os
 import json
 import shutil
 from typing import List, Dict, Any
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Import bulk pipeline executor
-from src.orchestrator import run_bulk_pipeline
+from src.orchestrator import run_bulk_pipeline, LIVE_LOG_PATH
 
 app = FastAPI(title="GeminiJobBot Dashboard API")
 
@@ -190,27 +190,42 @@ def update_api_key(payload: ApiKeyUpdate):
     return {"status": "success", "message": "API Key updated successfully."}
 
 
-@app.post("/api/run")
-def run_agent(req: RunAgentRequest):
+@app.get("/api/run/logs")
+def get_run_logs():
     """
-    Triggers the Playwright + Gemini bulk search and application agent loop.
+    Exposes the dynamically generated live log file lines.
+    """
+    if not os.path.exists(LIVE_LOG_PATH):
+        return {"logs": []}
+    try:
+        with open(LIVE_LOG_PATH, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        return {"logs": [line.strip() for line in lines]}
+    except Exception as e:
+        return {"logs": [f"Error reading live logs: {e}"]}
+
+
+@app.post("/api/run")
+def run_agent(req: RunAgentRequest, background_tasks: BackgroundTasks):
+    """
+    Triggers the Playwright + Gemini bulk search pipeline asynchronously.
     """
     if req.cv_path != "auto" and req.cv_path != "all" and not os.path.exists(req.cv_path):
         raise HTTPException(status_code=400, detail=f"The selected CV path '{req.cv_path}' does not exist.")
 
-    try:
-        logs = run_bulk_pipeline(
-            search_query=req.search_query,
-            max_applications=req.max_applications,
-            portals=req.portals,
-            headless=True,
-            blueprint_path=BLUEPRINT_PATH,
-            user_data_dir="./.browser_session",
-            cv_path=req.cv_path
-        )
-        return {"status": "completed", "message": "Bulk automation pipeline completed.", "logs": logs}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Agent loop error: {str(e)}")
+    # Trigger run_bulk_pipeline in the background thread
+    background_tasks.add_task(
+        run_bulk_pipeline,
+        search_query=req.search_query,
+        max_applications=req.max_applications,
+        portals=req.portals,
+        headless=True,
+        blueprint_path=BLUEPRINT_PATH,
+        user_data_dir="./.browser_session",
+        cv_path=req.cv_path
+    )
+
+    return {"status": "triggered", "message": "Bulk automation pipeline successfully initiated in background."}
 
 
 if __name__ == "__main__":

@@ -37,6 +37,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger("JobBotOrchestrator")
 
+LIVE_LOG_PATH = "./workflows/checkpoints/live_run.log"
+
+
+def append_live_log(message: str):
+    """
+    Appends execution logs to a local file so the FastAPI server can stream them to the UI.
+    """
+    try:
+        os.makedirs(os.path.dirname(LIVE_LOG_PATH), exist_ok=True)
+        with open(LIVE_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(message + "\n")
+    except Exception as e:
+        logger.error(f"Error writing to live log file: {e}")
+
 
 def extract_text_from_pdf(pdf_path: str) -> str:
     """
@@ -71,6 +85,7 @@ class PlaywrightBrowserEngine:
     def log(self, message: str):
         logger.info(message)
         self.log_history.append(message)
+        append_live_log(message)
 
     def start(self):
         self.log(f"Launching Playwright (Headless={self.headless}, UserDataDir={self.user_data_dir})")
@@ -86,9 +101,10 @@ class PlaywrightBrowserEngine:
     def navigate_to(self, url: str) -> str:
         self.log(f"Navigating to: {url}")
         try:
-            self.page.goto(url, wait_until="networkidle", timeout=15000)
+            # Shortened timeout to 6000ms to fail fast on blocked/throttled portal pages
+            self.page.goto(url, wait_until="networkidle", timeout=6000)
         except Exception as e:
-            self.log(f"Navigation timed out or encountered errors: {e}")
+            self.log(f"Navigation ended or timed out: {e}")
         return self.page.content()
 
     def extract_job_urls(self, portal: str) -> List[str]:
@@ -210,7 +226,7 @@ class GeminiJobAgent:
         """
         summarized_profiles = {}
         for filename, content in profiles.items():
-            summarized_profiles[filename] = content[:1500] # Provide snippet
+            summarized_profiles[filename] = content[:1500]
 
         prompt = f"""
         Compare the following job posting HTML details against all candidate CV profiles available.
@@ -243,7 +259,6 @@ class GeminiJobAgent:
         except Exception as e:
             logger.error(f"Error in dynamic AI CV selection: {e}")
             
-        # Default fallback to first key
         return list(profiles.keys())[0] if profiles else ""
 
     def analyze_job(self, page_html: str, blueprint: Dict[str, Any], cv_keywords: List[str]) -> Dict[str, Any]:
@@ -366,8 +381,14 @@ def run_bulk_pipeline(
 ) -> List[str]:
     """
     Runs search loops over multiple job portals and applies to matching jobs up to max_applications.
-    Supports dynamic routing across all loaded profiles if cv_path == "auto".
     """
+    # Clean/Reset the live run log file
+    if os.path.exists(LIVE_LOG_PATH):
+        try:
+            os.remove(LIVE_LOG_PATH)
+        except Exception:
+            pass
+
     engine = PlaywrightBrowserEngine(headless=headless, user_data_dir=user_data_dir)
     engine.log(f"Starting bulk pipeline. Query: '{search_query}', Max Applications: {max_applications}, Portals: {portals}")
     
@@ -389,7 +410,6 @@ def run_bulk_pipeline(
         return engine.log_history
 
     # 3. Load CV Profile(s)
-    # Scan profiles directory for multi-profile evaluation
     profiles_dict = {}
     profiles_dir = "./profiles"
     for filename in os.listdir(profiles_dir):
@@ -410,13 +430,7 @@ def run_bulk_pipeline(
         engine.log("No valid candidate profiles found in './profiles'. Aborting.")
         return engine.log_history
 
-    # Choose selection strategy
     is_auto_routing = cv_path == "auto" or cv_path == "all" or not cv_path
-    
-    # Initialize Gemini Agent
-    agent = GeminiJobAgent(api_key=api_key, model_name=model_name)
-    
-    # If using single active CV, initialize keywords
     selected_cv = cv_path if not is_auto_routing else list(profiles_dict.keys())[0]
     
     if not is_auto_routing:
@@ -425,9 +439,10 @@ def run_bulk_pipeline(
         cv_keywords = agent.extract_keywords_from_cv(resume_data)
     else:
         engine.log("AI Auto-Routing enabled. The agent will compare job postings against all CV profiles in the folder dynamically.")
-        cv_keywords = [] # Dynamic per posting
+        cv_keywords = []
         
     applied_count = 0
+    agent = GeminiJobAgent(api_key=api_key, model_name=model_name)
     
     try:
         engine.start()
@@ -439,7 +454,6 @@ def run_bulk_pipeline(
                 
             engine.log(f"--- Executing search on portal: {portal} ---")
             
-            # Construct search URL
             search_url = ""
             if portal == "LinkedIn":
                 search_url = f"https://www.linkedin.com/jobs/search/?keywords={search_query.replace(' ', '%20')}"
@@ -461,7 +475,7 @@ def run_bulk_pipeline(
                 engine.log(f"Processing candidate job listing {idx+1}/{len(job_urls)}: {job_url}")
                 page_html = engine.navigate_to(job_url)
                 
-                # Dynamic Routing: Choose best fitting CV
+                # Dynamic Routing
                 if is_auto_routing:
                     engine.log("Comparing job description against all loaded candidate CVs...")
                     selected_cv = agent.select_best_cv(page_html, profiles_dict)
@@ -496,7 +510,6 @@ def run_bulk_pipeline(
     return engine.log_history
 
 
-# Compatibility wrapper for single execution pipeline
 def run_pipeline(url: str, headless: bool, blueprint_path: str, user_data_dir: str, cv_path: str) -> List[str]:
     return run_bulk_pipeline(
         search_query="AI Engineer",

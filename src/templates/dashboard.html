@@ -400,6 +400,7 @@
 
     <script>
         let currentLang = 'ES';
+        let logPoller = null;
 
         const translations = {
             EN: {
@@ -588,7 +589,6 @@
                 container.innerHTML = '';
                 select.innerHTML = '';
                 
-                // Add AI Auto Routing Option first
                 const autoOpt = document.createElement('option');
                 autoOpt.value = 'auto';
                 autoOpt.textContent = currentLang === 'ES' ? '🤖 Ruteo Inteligente por IA (Multiperfil)' : '🤖 AI Auto-Routing (Multi-profile)';
@@ -642,7 +642,6 @@
             const limit = parseInt(document.getElementById('max-applications').value);
             const cvPath = document.getElementById('active-cv').value;
             
-            // Extract checked portals
             const portalCheckboxes = document.querySelectorAll('input[name="portals"]:checked');
             const portals = Array.from(portalCheckboxes).map(cb => cb.value);
             
@@ -651,9 +650,13 @@
                 return;
             }
             
-            document.getElementById('bot-status').textContent = 'Running...';
-            addLog(`Agent bulk run triggered.`);
-            addLog(`Query: '${query}' | Limit: ${limit} apps | Portals: [${portals.join(', ')}]`);
+            document.getElementById('bot-status').textContent = currentLang === 'ES' ? 'Buscando...' : 'Running...';
+            document.getElementById('bot-status').style.borderColor = '#3b82f6';
+            document.getElementById('bot-status').style.color = '#3b82f6';
+            
+            // Clear console output log
+            document.getElementById("console").innerHTML = "";
+            addLog(currentLang === 'ES' ? "Automatización iniciada en segundo plano..." : "Background worker started. Listening to live logs...");
             
             try {
                 const res = await fetch('/api/run', {
@@ -666,20 +669,43 @@
                         cv_path: cvPath
                     })
                 });
-                const result = await res.json();
                 
                 if (res.ok) {
-                    addLog(`Success: ${result.message}`);
-                    if (result.logs) {
-                        result.logs.forEach(l => addLog(l));
-                    }
+                    let lastLogIndex = 0;
+                    if (logPoller) clearInterval(logPoller);
+                    
+                    logPoller = setInterval(async () => {
+                        try {
+                            const logsRes = await fetch('/api/run/logs');
+                            const logsData = await logsRes.json();
+                            const logs = logsData.logs || [];
+                            
+                            if (logs.length > lastLogIndex) {
+                                for (let i = lastLogIndex; i < logs.length; i++) {
+                                    addLog(logs[i]);
+                                }
+                                lastLogIndex = logs.length;
+                            }
+                            
+                            const lastLine = logs[logs.length - 1] || "";
+                            if (lastLine.includes("Pipeline finished") || lastLine.includes("Fatal error")) {
+                                clearInterval(logPoller);
+                                document.getElementById('bot-status').textContent = currentLang === 'ES' ? 'Listo' : 'Engine Ready';
+                                document.getElementById('bot-status').style.borderColor = '#10b981';
+                                document.getElementById('bot-status').style.color = '#34d399';
+                            }
+                        } catch (err) {
+                            console.error("Polling error", err);
+                        }
+                    }, 1500);
                 } else {
+                    const result = await res.json();
                     addLog(`Execution Error: ${result.detail}`, true);
+                    document.getElementById('bot-status').textContent = currentLang === 'ES' ? 'Listo' : 'Engine Ready';
                 }
             } catch (err) {
-                addLog("Connection timeout during loop runs.", true);
-            } finally {
-                document.getElementById('bot-status').textContent = 'Engine Ready';
+                addLog("Connection failed to start pipeline.", true);
+                document.getElementById('bot-status').textContent = currentLang === 'ES' ? 'Listo' : 'Engine Ready';
             }
         }
     </script>
