@@ -1,32 +1,51 @@
 {
   "agent_metadata": {
-    "version": "1.1.0",
-    "name": "Job Application Subagent Blueprint"
+    "version": "1.2.0",
+    "name": "Gabriel Trujillo Vallejo - Job Agent Blueprint"
   },
   "targeting": {
-    "job_portals": ["LinkedIn", "Indeed", "Glassdoor"],
-    "target_roles": [
-      "Senior Software Engineer",
-      "AI Engineer",
-      "Agentic AI Engineer",
-      "Backend Engineer",
-      "Machine Learning Engineer"
+    "job_portals": [
+      "LinkedIn",
+      "Indeed",
+      "Glassdoor"
     ],
-    "target_locations": ["San Francisco, CA", "Remote (US)", "Hybrid - San Francisco"]
+    "target_roles": [
+      "Systems Engineer",
+      "QA Engineer",
+      "SDET",
+      "DevOps Engineer",
+      "AI Agentic Developer",
+      "Especialista en Infraestructura",
+      "QA Automation"
+    ],
+    "target_locations": [
+      "Sevilla",
+      "España",
+      "Madrid",
+      "Barcelona",
+      "Remote (Europe)",
+      "Remoto (España)"
+    ]
   },
   "filtering_rules": {
-    "minimum_salary": 130000,
+    "minimum_salary": 45000,
     "currency": "EUR",
     "target_keywords": [
-      "AI",
+      "Linux",
+      "QA",
+      "SDET",
       "Python",
-      "Playwright",
-      "Agents",
-      "FastAPI"
+      "Docker",
+      "Bash",
+      "Swift",
+      "LangChain",
+      "CI/CD",
+      "Automation",
+      "Testing"
     ],
     "experience_years_range": {
-      "min": 4,
-      "max": 12
+      "min": 3,
+      "max": 10
     }
   },
   "dynamic_resume_routing": {
@@ -37,12 +56,12 @@
         "cover_letter_tone": "highly-technical-and-innovative"
       },
       {
-        "role_regex": "(?i)(backend|software engineer|systems|golang|python)",
-        "resume_path": "profiles/resume_backend_engineer.json",
-        "cover_letter_tone": "infrastructure-and-performance-focused"
+        "role_regex": "(?i)(qa|sdet|testing|automation|systems|linux|devops)",
+        "resume_path": "profiles/Gabriel_Trujillo_CV_2026.pdf",
+        "cover_letter_tone": "systems-and-qa-stability-focused"
       }
     ],
-    "default_resume_path": "profiles/resume_template.json",
+    "default_resume_path": "profiles/Gabriel_Trujillo_CV_2026.pdf",
     "default_cover_letter_tone": "balanced-professional"
   },
   "safety_and_verification": {
