@@ -308,11 +308,18 @@
             <section class="card">
                 <h2 id="title-credentials">Gemini API Configuration</h2>
                 <div class="row-flex" style="align-items: flex-end;">
-                    <div class="form-group" style="flex-grow: 1;">
+                    <div class="form-group" style="flex: 2;">
                         <label id="lbl-apikey">Gemini API Key</label>
                         <input type="text" id="gemini-apikey" placeholder="Enter API Key here (starts with AIza...)">
                     </div>
-                    <button class="btn" style="height: 35px; padding: 0 1rem;" id="btn-save-key" onclick="saveApiKey()">Save Key</button>
+                    <div class="form-group" style="flex: 1.2;">
+                        <label id="lbl-model">Gemini Model</label>
+                        <select id="gemini-model" style="padding: 0.6rem 0.8rem; font-size: 0.85rem;">
+                            <option value="gemini-1.5-flash">1.5 Flash (1500 req/day)</option>
+                            <option value="gemini-2.5-flash">2.5 Flash (20 req/day)</option>
+                        </select>
+                    </div>
+                    <button class="btn" style="height: 38px; padding: 0 1rem;" id="btn-save-key" onclick="saveApiKey()">Save Credentials</button>
                 </div>
             </section>
 
@@ -440,7 +447,8 @@
                 lbl_clicktext: "Or click to browse from system",
                 title_console: "Execution Console Logs",
                 log_init: "Dashboard console initialized. Setup parameters above and run the subagent.",
-                lbl_showbrowser: "Show Browser"
+                lbl_showbrowser: "Show Browser",
+                lbl_model: "Gemini Model"
             },
             ES: {
                 subtitle: "Subagente Autónomo de Postulación de Empleo",
@@ -461,7 +469,8 @@
                 lbl_clicktext: "O haz clic para explorar en tu equipo",
                 title_console: "Consola de Registros de Ejecución",
                 log_init: "Consola del panel inicializada. Configura los parámetros arriba e inicia el subagente.",
-                lbl_showbrowser: "Mostrar Navegador"
+                lbl_showbrowser: "Mostrar Navegador",
+                lbl_model: "Modelo Gemini"
             }
         };
 
@@ -510,6 +519,7 @@
             document.getElementById('lbl-clicktext').textContent = t.lbl_clicktext;
             document.getElementById('title-console').textContent = t.title_console;
             document.getElementById('lbl-showbrowser').textContent = t.lbl_showbrowser;
+            document.getElementById('lbl-model').textContent = t.lbl_model;
         }
 
         function addLog(message, isErr = false) {
@@ -528,6 +538,9 @@
                 if (data.gemini_api_key) {
                     document.getElementById('gemini-apikey').value = data.gemini_api_key;
                 }
+                if (data.gemini_model) {
+                    document.getElementById('gemini-model').value = data.gemini_model;
+                }
             } catch (err) {
                 addLog("Error loading Gemini API Key status.", true);
             }
@@ -535,20 +548,21 @@
 
         async function saveApiKey() {
             const keyVal = document.getElementById('gemini-apikey').value;
+            const modelVal = document.getElementById('gemini-model').value;
             try {
                 const res = await fetch('/api/apikey', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ gemini_api_key: keyVal })
+                    body: JSON.stringify({ gemini_api_key: keyVal, gemini_model: modelVal })
                 });
                 if (res.ok) {
-                    addLog("Gemini API Key updated successfully.");
+                    addLog("Gemini API credentials updated successfully.");
                     loadApiKey();
                 } else {
-                    addLog("Failed to save Gemini API Key.", true);
+                    addLog("Failed to save Gemini API credentials.", true);
                 }
             } catch (err) {
-                addLog("Connection error saving API Key.", true);
+                addLog("Connection error saving API credentials.", true);
             }
         }
 

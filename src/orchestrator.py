@@ -179,7 +179,7 @@ class GeminiJobAgent:
     Autonomous subagent powered by Gemini, designed to parse job details,
     evaluate them against a specification, select best matching CVs, and execute forms.
     """
-    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
         if not api_key:
             raise ValueError("API Key for Gemini must be provided.")
         self.model_name = model_name
@@ -433,7 +433,7 @@ def run_bulk_pipeline(
     # 2. Load API Credentials
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
-    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     
     if not api_key:
         engine.log("GEMINI_API_KEY environment variable is missing in .env. Aborting.")

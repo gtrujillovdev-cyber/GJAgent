@@ -45,6 +45,7 @@ class RunAgentRequest(BaseModel):
 
 class ApiKeyUpdate(BaseModel):
     gemini_api_key: str
+    gemini_model: str = "gemini-1.5-flash"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -145,28 +146,29 @@ def upload_cv(file: UploadFile = File(...)):
 @app.get("/api/apikey")
 def get_api_key():
     """
-    Fetches the loaded Gemini API Key masked for security, if configured.
+    Fetches the loaded Gemini API Key masked for security, and the active model name.
     """
     load_dotenv()
     key = os.getenv("GEMINI_API_KEY", "")
+    model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     if len(key) > 8:
         masked = key[:4] + "..." + key[-4:]
     else:
         masked = "Not Configured"
-    return {"gemini_api_key": masked}
+    return {"gemini_api_key": masked, "gemini_model": model}
 
 
 @app.post("/api/apikey")
 def update_api_key(payload: ApiKeyUpdate):
     """
-    Updates the GEMINI_API_KEY environment variable and writes it back to the local .env file.
+    Updates the GEMINI_API_KEY and GEMINI_MODEL environment variables in the local .env file.
     """
     key_val = payload.gemini_api_key.strip()
-    if not key_val:
-        raise HTTPException(status_code=400, detail="API key cannot be empty.")
+    model_val = payload.gemini_model.strip()
 
     lines = []
-    found = False
+    found_key = False
+    found_model = False
     if os.path.exists(ENV_PATH):
         with open(ENV_PATH, "r") as f:
             lines = f.readlines()
@@ -174,21 +176,33 @@ def update_api_key(payload: ApiKeyUpdate):
     new_lines = []
     for line in lines:
         if line.strip().startswith("GEMINI_API_KEY="):
-            new_lines.append(f"GEMINI_API_KEY={key_val}\n")
-            found = True
+            if "..." not in key_val and key_val != "Not Configured" and key_val != "":
+                new_lines.append(f"GEMINI_API_KEY={key_val}\n")
+                os.environ["GEMINI_API_KEY"] = key_val
+            else:
+                new_lines.append(line)
+            found_key = True
+        elif line.strip().startswith("GEMINI_MODEL="):
+            new_lines.append(f"GEMINI_MODEL={model_val}\n")
+            os.environ["GEMINI_MODEL"] = model_val
+            found_model = True
         else:
             new_lines.append(line)
 
-    if not found:
+    if not found_key and "..." not in key_val and key_val != "Not Configured" and key_val != "":
         new_lines.append(f"GEMINI_API_KEY={key_val}\n")
+        os.environ["GEMINI_API_KEY"] = key_val
+
+    if not found_model:
+        new_lines.append(f"GEMINI_MODEL={model_val}\n")
+        os.environ["GEMINI_MODEL"] = model_val
 
     with open(ENV_PATH, "w") as f:
         f.writelines(new_lines)
 
-    os.environ["GEMINI_API_KEY"] = key_val
     load_dotenv()
 
-    return {"status": "success", "message": "API Key updated successfully."}
+    return {"status": "success", "message": "API credentials updated successfully."}
 
 
 @app.get("/api/run/logs")
