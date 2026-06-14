@@ -359,12 +359,19 @@
                 </div>
 
                 <div class="row-flex">
-                    <div class="form-group" style="flex: 2;">
+                    <div class="form-group" style="flex: 1;">
+                        <label id="lbl-jobsource">Job Source / Origen</label>
+                        <select id="job-source" onchange="toggleJobSource()" style="padding: 0.6rem 0.8rem; font-size: 0.85rem;">
+                            <option value="search">🔍 Portal Live Search</option>
+                            <option value="imported">🤖 Imported Agent Jobs</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1.5;" id="container-searchquery">
                         <label id="lbl-searchquery">Search Keywords / Role</label>
                         <input type="text" id="search-query" placeholder="e.g. QA Automation" value="QA Automation">
                     </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label id="lbl-maxapps">Max Applications</label>
+                    <div class="form-group" style="flex: 0.8;">
+                        <label id="lbl-maxapps">Max Apps</label>
                         <input type="number" id="max-applications" value="20" min="1" max="100">
                     </div>
                 </div>
@@ -673,8 +680,48 @@
             }
         }
 
+        function toggleJobSource() {
+            const source = document.getElementById('job-source').value;
+            const queryContainer = document.getElementById('container-searchquery');
+            const portalCheckboxes = document.querySelectorAll('input[name="portals"]');
+            
+            if (source === 'imported') {
+                queryContainer.style.opacity = '0.5';
+                document.getElementById('search-query').disabled = true;
+                portalCheckboxes.forEach(cb => {
+                    cb.disabled = true;
+                    cb.parentElement.style.opacity = '0.5';
+                });
+                loadDiscoveredJobsCount();
+            } else {
+                queryContainer.style.opacity = '1';
+                document.getElementById('search-query').disabled = false;
+                portalCheckboxes.forEach(cb => {
+                    cb.disabled = false;
+                    cb.parentElement.style.opacity = '1';
+                });
+            }
+        }
+        
+        async function loadDiscoveredJobsCount() {
+            try {
+                const res = await fetch('/api/discovered');
+                const data = await res.json();
+                const jobs = data.jobs || [];
+                addLog(currentLang === 'ES' 
+                    ? `Se encontraron ${jobs.length} oferta(s) descubierta(s) por el agente en workflows/checkpoints/discovered_jobs.json`
+                    : `Found ${jobs.length} pre-discovered job(s) from agent in workflows/checkpoints/discovered_jobs.json`);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
         async function runAgent() {
-            const query = document.getElementById('search-query').value;
+            const source = document.getElementById('job-source').value;
+            let query = document.getElementById('search-query').value;
+            if (source === 'imported') {
+                query = '__imported__';
+            }
             const limit = parseInt(document.getElementById('max-applications').value);
             const cvPath = document.getElementById('active-cv').value;
             const showBrowser = document.getElementById('show-browser').checked;
@@ -682,7 +729,7 @@
             const portalCheckboxes = document.querySelectorAll('input[name="portals"]:checked');
             const portals = Array.from(portalCheckboxes).map(cb => cb.value);
             
-            if (portals.length === 0) {
+            if (source !== 'imported' && portals.length === 0) {
                 addLog("Please select at least one portal.", true);
                 return;
             }
@@ -701,9 +748,9 @@
                     body: JSON.stringify({
                         search_query: query,
                         max_applications: limit,
-                        portals: portals,
+                        portals: source === 'imported' ? ['LinkedIn'] : portals,
                         cv_path: cvPath,
-                        headless: !showBrowser // Send headless state based on UI Show Browser checkbox
+                        headless: !showBrowser
                     })
                 });
                 

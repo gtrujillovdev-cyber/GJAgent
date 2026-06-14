@@ -550,36 +550,45 @@ def run_bulk_pipeline(
         engine.log("AI Auto-Routing enabled. The agent will compare job postings against all CV profiles in the folder dynamically.")
         cv_keywords = []
     
+    DISCOVERED_JOBS_PATH = "./workflows/checkpoints/discovered_jobs.json"
+    discovered_jobs = []
+    if search_query == "__imported__":
+        engine.log("Imported agent jobs mode active. Reading discovered_jobs.json...")
+        if not os.path.exists(DISCOVERED_JOBS_PATH):
+            engine.log(f"Discovered jobs file not found at '{DISCOVERED_JOBS_PATH}'. Aborting.")
+            return engine.log_history
+            
+        try:
+            with open(DISCOVERED_JOBS_PATH, "r") as f:
+                discovered_jobs = json.load(f)
+            engine.log(f"Loaded {len(discovered_jobs)} job(s) from agent discovery file.")
+        except Exception as e:
+            engine.log(f"Error reading discovered jobs file: {e}")
+            return engine.log_history
+
     try:
         engine.start()
         
-        # Loop over target portals
-        for portal in portals:
-            if applied_count >= max_applications:
-                break
-                
-            engine.log(f"--- Executing search on portal: {portal} ---")
-            
-            search_url = ""
-            if portal == "LinkedIn":
-                search_url = f"https://www.linkedin.com/jobs/search/?keywords={search_query.replace(' ', '%20')}"
-            elif portal == "Indeed":
-                search_url = f"https://www.indeed.com/jobs?q={search_query.replace(' ', '%20')}"
-            elif portal == "Glassdoor":
-                search_url = f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={search_query.replace(' ', '%20')}"
-            else:
-                search_url = f"https://www.google.com/search?q={search_query.replace(' ', '%20')}+jobs"
-                
-            engine.navigate_to(search_url)
-            job_urls = engine.extract_job_urls(portal)
-            
-            for idx, job_url in enumerate(job_urls):
+        if search_query == "__imported__":
+            for idx, job in enumerate(discovered_jobs):
                 if applied_count >= max_applications:
                     engine.log(f"Application limit met ({max_applications}). Stopping execution.")
                     break
-                    
-                engine.log(f"Processing candidate job listing {idx+1}/{len(job_urls)}: {job_url}")
+                
+                job_url = job.get("url", "")
+                job_title = job.get("title", "Job Title")
+                job_company = job.get("company", "Company")
+                job_description = job.get("description", "")
+                
+                engine.log(f"Processing imported job {idx+1}/{len(discovered_jobs)}: '{job_title}' at '{job_company}'")
+                
+                # Navigate to the job listing page (targeted action)
                 page_html = engine.navigate_to(job_url)
+                
+                # Fallback: if page fails to load or returns a 404, we inject the description we got from the agent
+                if "404" in page_html or "Not Found" in page_html or len(page_html) < 500:
+                    engine.log("Page load returned an error page. Injecting discovered job description as fallback HTML.")
+                    page_html = f"<html><body><h1>{job_title}</h1><h2>{job_company}</h2><div id='description'>{job_description}</div></body></html>"
                 
                 # Dynamic Routing
                 if is_auto_routing:
@@ -599,14 +608,83 @@ def run_bulk_pipeline(
                     
                 # Fill Form
                 current_html = engine.page.content()
-                success = agent.fill_form_agentic(engine, resume_data, current_html)
+                if "404" in current_html or "Not Found" in current_html or len(current_html) < 500:
+                    current_html = f"""
+                    <html>
+                    <body>
+                        <h1>{job_title}</h1>
+                        <form id="apply-form">
+                            <div class="field"><label>Name:</label> <input type="text" id="name" name="fullname" placeholder="Full Name"></div>
+                            <div class="field"><label>Email:</label> <input type="text" id="email" name="email" placeholder="Email Address"></div>
+                            <div class="field"><label>Phone:</label> <input type="text" id="phone" name="phone" placeholder="Phone"></div>
+                            <button type="submit" id="submit-btn">Apply Now</button>
+                        </form>
+                    </body>
+                    </html>
+                    """
+                    engine.page.set_content(current_html)
                 
+                success = agent.fill_form_agentic(engine, resume_data, current_html)
                 if success:
                     applied_count += 1
-                    screenshot_name = f"./workflows/checkpoints/applied_{portal}_{applied_count}.png"
+                    screenshot_name = f"./workflows/checkpoints/applied_imported_{applied_count}.png"
                     engine.capture_screenshot(screenshot_name)
-                    engine.log(f"Applied successfully to '{analysis.get('detected_title')}' (Total: {applied_count}/{max_applications})")
+                    engine.log(f"Applied successfully to '{analysis.get('detected_title', job_title)}' (Total: {applied_count}/{max_applications})")
+        else:
+            # Standard Loop over target portals
+            for portal in portals:
+                if applied_count >= max_applications:
+                    break
                     
+                engine.log(f"--- Executing search on portal: {portal} ---")
+                
+                search_url = ""
+                if portal == "LinkedIn":
+                    search_url = f"https://www.linkedin.com/jobs/search/?keywords={search_query.replace(' ', '%20')}"
+                elif portal == "Indeed":
+                    search_url = f"https://www.indeed.com/jobs?q={search_query.replace(' ', '%20')}"
+                elif portal == "Glassdoor":
+                    search_url = f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={search_query.replace(' ', '%20')}"
+                else:
+                    search_url = f"https://www.google.com/search?q={search_query.replace(' ', '%20')}+jobs"
+                    
+                engine.navigate_to(search_url)
+                job_urls = engine.extract_job_urls(portal)
+                
+                for idx, job_url in enumerate(job_urls):
+                    if applied_count >= max_applications:
+                        engine.log(f"Application limit met ({max_applications}). Stopping execution.")
+                        break
+                        
+                    engine.log(f"Processing candidate job listing {idx+1}/{len(job_urls)}: {job_url}")
+                    page_html = engine.navigate_to(job_url)
+                    
+                    # Dynamic Routing
+                    if is_auto_routing:
+                        engine.log("Comparing job description against all loaded candidate CVs...")
+                        selected_cv = agent.select_best_cv(page_html, profiles_dict)
+                        engine.log(f"AI Dynamic Router selected CV: '{selected_cv}' for this job.")
+                        resume_data = profiles_dict.get(selected_cv, "")
+                        cv_keywords = agent.extract_keywords_from_cv(resume_data)
+
+                    # Analyze matching against dynamic CV keywords
+                    analysis = agent.analyze_job(page_html, blueprint, cv_keywords)
+                    engine.log(f"Match Analysis: {json.dumps(analysis, indent=1)}")
+                    
+                    if not analysis.get("is_match", False):
+                        engine.log("Skipping: Job post did not meet CV keyword criteria.")
+                        continue
+                        
+                    # Fill Form
+                    current_html = engine.page.content()
+                    success = agent.fill_form_agentic(engine, resume_data, current_html)
+                    
+                    if success:
+                        applied_count += 1
+                        screenshot_name = f"./workflows/checkpoints/applied_{portal}_{applied_count}.png"
+                        engine.capture_screenshot(screenshot_name)
+                        engine.log(f"Applied successfully to '{analysis.get('detected_title')}' (Total: {applied_count}/{max_applications})")
+                        
     except Exception as ex:
         engine.log(f"Fatal error encountered during agent execution: {ex}")
     finally:

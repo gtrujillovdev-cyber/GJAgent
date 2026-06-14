@@ -243,6 +243,22 @@ def run_agent(req: RunAgentRequest, background_tasks: BackgroundTasks):
     return {"status": "triggered", "message": "Bulk automation pipeline successfully initiated in background."}
 
 
+@app.get("/api/discovered")
+def get_discovered_jobs():
+    """
+    Reads the pre-discovered jobs from workflows/checkpoints/discovered_jobs.json.
+    """
+    path = "./workflows/checkpoints/discovered_jobs.json"
+    if not os.path.exists(path):
+        return {"jobs": []}
+    try:
+        with open(path, "r") as f:
+            jobs = json.load(f)
+        return {"jobs": jobs}
+    except Exception as e:
+        return {"jobs": [], "error": str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
