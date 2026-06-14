@@ -3,7 +3,7 @@
 Orchestrator for the Gemini Job Application Subagent.
 This script coordinates real browser automation using Playwright,
 Gemini API calls via the modern google-genai SDK,
-dynamic profile loading, portal searches, and execution of bulk job applications.
+dynamic profile loading, dynamic keyword extraction from CVs, and execution of bulk job applications.
 """
 
 import os
@@ -98,14 +98,12 @@ class PlaywrightBrowserEngine:
         urls = []
         try:
             self.log(f"Parsing job listing elements from {portal} results page...")
-            # Extract anchor elements matching typical job patterns
             hrefs = self.page.evaluate('''() => {
                 return Array.from(document.querySelectorAll('a'))
                     .map(anchor => anchor.href)
                     .filter(href => href.includes('/jobs/view') || href.includes('/rc/clk') || href.includes('/partner/jobProject'));
             }''')
             
-            # Clean and filter duplicates
             seen = set()
             for href in hrefs:
                 clean_href = href.split('?')[0]
@@ -117,7 +115,6 @@ class PlaywrightBrowserEngine:
         except Exception as e:
             self.log(f"Error extracting job links: {e}")
             
-        # Fallback simulated links if none found (e.g. if page demands login)
         if not urls:
             self.log("No active elements found on public page. Generating simulated job links for demonstration...")
             urls = [
@@ -172,9 +169,45 @@ class GeminiJobAgent:
         self.model_name = model_name
         self.client = genai.Client(api_key=api_key)
 
-    def analyze_job(self, page_html: str, blueprint: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_keywords_from_cv(self, resume_data: Union[Dict[str, Any], str]) -> List[str]:
         """
-        Uses Gemini's reasoning capabilities to evaluate whether a job posting matches criteria.
+        Asks Gemini to read the candidate CV and extract key professional skills/keywords.
+        """
+        resume_str = json.dumps(resume_data, indent=2) if isinstance(resume_data, dict) else str(resume_data)
+        prompt = f"""
+        Read the following candidate CV and extract a list of the top 15 core technical keywords, 
+        technologies, skills, programming languages, or frameworks that define this profile.
+        
+        Candidate CV:
+        \"\"\"{resume_str[:12000]}\"\"\"
+        
+        Return a JSON response matching:
+        {{
+          "keywords": ["Python", "Playwright", "FastAPI", "etc"]
+        }}
+        """
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    system_instruction="You are an expert AI talent acquisition system. Extract core technical keywords from resumes."
+                )
+            )
+            data = json.loads(response.text.strip())
+            keywords = data.get("keywords", [])
+            logger.info(f"Dynamically extracted keywords from CV: {keywords}")
+            return keywords
+        except Exception as e:
+            logger.error(f"Error dynamically extracting keywords from CV: {e}")
+            # Static fallback in case of API failure
+            return ["Python", "FastAPI", "Docker", "Playwright", "LLMs", "Agentic Frameworks"]
+
+    def analyze_job(self, page_html: str, blueprint: Dict[str, Any], cv_keywords: List[str]) -> Dict[str, Any]:
+        """
+        Uses Gemini's reasoning capabilities to evaluate whether a job posting matches criteria,
+        relying primarily on CV keywords.
         """
         clean_html = re.sub(r'<script.*?</script>', '', page_html, flags=re.DOTALL)
         clean_html = re.sub(r'<style.*?</style>', '', clean_html, flags=re.DOTALL)
@@ -186,26 +219,29 @@ class GeminiJobAgent:
         clean_html = clean_html[:12000]
 
         prompt = f"""
-        Analyze the following HTML content of a job post and match it against the applicant's blueprint requirements.
+        Analyze the HTML content of the job post and evaluate if it matches the candidate profile.
         
         Job HTML Content:
         \"\"\"{clean_html}\"\"\"
         
-        Applicant Blueprint targeting:
+        Salary & Filtering Specs:
         {json.dumps(blueprint.get("filtering_rules", {}), indent=2)}
+        
+        Candidate CV Keywords (Lo que prevalece en la decisión):
+        {json.dumps(cv_keywords, indent=2)}
         
         Return a JSON response matching the following structure:
         {{
           "is_match": true/false,
           "match_confidence": 0.0 to 1.0,
-          "reason": "Detailed description explaining match status, highlighting presence of target keywords and salary alignment",
+          "reason": "Detailed description explaining match status, highlighting presence of CV keywords and salary alignment",
           "detected_title": "Identified job role",
           "detected_salary": "Identified salary details or 'Not Specified'"
         }}
         
         Important Matching Rules:
         - Analyze the salary and convert currencies if they differ (evaluate minimum salary threshold using approximate exchange rates).
-        - Verify if at least one or more of the specified "target_keywords" are represented in the job post (prioritize jobs carrying these keywords).
+        - Verify if at least one or more of the candidate's CV Keywords are represented in the job post (prioritize jobs carrying these keywords).
         """
         
         try:
@@ -214,7 +250,7 @@ class GeminiJobAgent:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    system_instruction="You are an expert AI recruiting systems specialist. Analyze the job posting, handle currency evaluation, check target keywords, and output structured JSON."
+                    system_instruction="You are an expert AI recruiting systems specialist. Analyze the job posting, handle currency evaluation, check target CV keywords, and output structured JSON."
                 )
             )
             return json.loads(response.text.strip())
@@ -327,6 +363,12 @@ def run_bulk_pipeline(
 
     # 4. Initialize Gemini Agent & Browser Engine
     agent = GeminiJobAgent(api_key=api_key, model_name=model_name)
+    
+    # 5. Extract CV Keywords Dynamically (Lo que prevalece en la decisión)
+    engine.log("Extracting profile keywords dynamically from CV to serve as target matching criteria...")
+    cv_keywords = agent.extract_keywords_from_cv(resume_data)
+    engine.log(f"Active Match Directives (CV Keywords): {cv_keywords}")
+    
     applied_count = 0
     
     try:
@@ -339,7 +381,7 @@ def run_bulk_pipeline(
                 
             engine.log(f"--- Executing search on portal: {portal} ---")
             
-            # Construct search URL
+            # Construct search URL (Término de búsqueda orientativo)
             search_url = ""
             if portal == "LinkedIn":
                 search_url = f"https://www.linkedin.com/jobs/search/?keywords={search_query.replace(' ', '%20')}"
@@ -364,12 +406,12 @@ def run_bulk_pipeline(
                 engine.log(f"Processing candidate job listing {idx+1}/{len(job_urls)}: {job_url}")
                 page_html = engine.navigate_to(job_url)
                 
-                # Analyze matching
-                analysis = agent.analyze_job(page_html, blueprint)
+                # Analyze matching against dynamic CV keywords
+                analysis = agent.analyze_job(page_html, blueprint, cv_keywords)
                 engine.log(f"Match Analysis: {json.dumps(analysis, indent=1)}")
                 
                 if not analysis.get("is_match", False):
-                    engine.log("Skipping: Job post did not meet criteria.")
+                    engine.log("Skipping: Job post did not meet CV keyword criteria.")
                     continue
                     
                 # Fill Form
