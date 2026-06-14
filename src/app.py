@@ -40,6 +40,7 @@ class RunAgentRequest(BaseModel):
     max_applications: int
     portals: List[str]
     cv_path: str
+    headless: bool = True
 
 
 class ApiKeyUpdate(BaseModel):
@@ -219,7 +220,7 @@ def run_agent(req: RunAgentRequest, background_tasks: BackgroundTasks):
         search_query=req.search_query,
         max_applications=req.max_applications,
         portals=req.portals,
-        headless=True,
+        headless=req.headless,
         blueprint_path=BLUEPRINT_PATH,
         user_data_dir="./.browser_session",
         cv_path=req.cv_path

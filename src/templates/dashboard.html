@@ -173,6 +173,7 @@
         .checkbox-group {
             display: flex;
             gap: 0.8rem;
+            align-items: center;
         }
 
         .checkbox-tile {
@@ -332,6 +333,12 @@
                         <input type="checkbox" name="portals" value="Glassdoor">
                         <span>Glassdoor</span>
                     </label>
+                    
+                    <!-- Headed Show Browser Toggle -->
+                    <label class="checkbox-tile" style="margin-left: auto; border-color: var(--primary);">
+                        <input type="checkbox" id="show-browser" checked>
+                        <span style="font-weight: 600;" id="lbl-showbrowser">Show Browser</span>
+                    </label>
                 </div>
 
                 <div class="row-flex">
@@ -432,7 +439,8 @@
                 lbl_dragtext: "Drag PDF / TXT CV here",
                 lbl_clicktext: "Or click to browse from system",
                 title_console: "Execution Console Logs",
-                log_init: "Dashboard console initialized. Setup parameters above and run the subagent."
+                log_init: "Dashboard console initialized. Setup parameters above and run the subagent.",
+                lbl_showbrowser: "Show Browser"
             },
             ES: {
                 subtitle: "Subagente Autónomo de Postulación de Empleo",
@@ -452,7 +460,8 @@
                 lbl_dragtext: "Arrastra tu currículum PDF o TXT aquí",
                 lbl_clicktext: "O haz clic para explorar en tu equipo",
                 title_console: "Consola de Registros de Ejecución",
-                log_init: "Consola del panel inicializada. Configura los parámetros arriba e inicia el subagente."
+                log_init: "Consola del panel inicializada. Configura los parámetros arriba e inicia el subagente.",
+                lbl_showbrowser: "Mostrar Navegador"
             }
         };
 
@@ -500,6 +509,7 @@
             document.getElementById('lbl-dragtext').textContent = t.lbl_dragtext;
             document.getElementById('lbl-clicktext').textContent = t.lbl_clicktext;
             document.getElementById('title-console').textContent = t.title_console;
+            document.getElementById('lbl-showbrowser').textContent = t.lbl_showbrowser;
         }
 
         function addLog(message, isErr = false) {
@@ -508,9 +518,6 @@
             entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
             if (isErr) entry.style.color = '#ef4444';
             consoleDiv.appendChild(entry);
-            
-            // Programmatically force scroll-to-bottom on element addition
-            // Keeps the newest logs visible without requiring a manual scrollbar
             consoleDiv.scrollTop = consoleDiv.scrollHeight;
         }
 
@@ -655,6 +662,7 @@
             const query = document.getElementById('search-query').value;
             const limit = parseInt(document.getElementById('max-applications').value);
             const cvPath = document.getElementById('active-cv').value;
+            const showBrowser = document.getElementById('show-browser').checked;
             
             const portalCheckboxes = document.querySelectorAll('input[name="portals"]:checked');
             const portals = Array.from(portalCheckboxes).map(cb => cb.value);
@@ -679,7 +687,8 @@
                         search_query: query,
                         max_applications: limit,
                         portals: portals,
-                        cv_path: cvPath
+                        cv_path: cvPath,
+                        headless: !showBrowser // Send headless state based on UI Show Browser checkbox
                     })
                 });
                 
