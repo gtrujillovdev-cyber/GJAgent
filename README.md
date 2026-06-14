@@ -101,9 +101,9 @@ python src/app.py
 Then navigate to: `http://127.0.0.1:8000` to adjust settings, upload resumes dynamically, and trigger the agent loop!
 
 ### 5. Running the Agent via CLI / Ejecutando el Agente por Consola
-To run the orchestrator directly from the command line:
+To run the orchestrator directly from the command line specifying search terms and application thresholds:
 ```bash
-python src/orchestrator.py --url "https://careers.example.com/jobs/senior-ai-engineer-102"
+python src/orchestrator.py --query "AI Engineer" --limit 20 --portals "LinkedIn,Indeed"
 ```
 
 

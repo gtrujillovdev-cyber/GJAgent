@@ -323,9 +323,15 @@
                     </label>
                 </div>
 
-                <div class="form-group">
-                    <label id="lbl-targeturl">Target Job URL</label>
-                    <input type="text" id="target-url" placeholder="https://linkedin.com/jobs/view/..." value="https://careers.example.com/jobs/senior-ai-engineer-102">
+                <div class="row-flex">
+                    <div class="form-group" style="flex: 2;">
+                        <label id="lbl-searchquery">Search Keywords / Role</label>
+                        <input type="text" id="search-query" placeholder="e.g. Senior AI Engineer" value="Senior AI Engineer">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label id="lbl-maxapps">Max Applications</label>
+                        <input type="number" id="max-applications" value="20" min="1" max="100">
+                    </div>
                 </div>
 
                 <div class="row-flex">
@@ -402,7 +408,8 @@
                 lbl_apikey: "Gemini API Key",
                 btn_save_key: "Save Key",
                 title_settings: "Search & Filtering Criteria",
-                lbl_targeturl: "Target Job URL",
+                lbl_searchquery: "Search Keywords / Role",
+                lbl_maxapps: "Max Applications",
                 lbl_minsalary: "Minimum Salary Target",
                 lbl_exp: "Experience (Years)",
                 lbl_keywords: "Target Keywords (Comma Separated)",
@@ -421,7 +428,8 @@
                 lbl_apikey: "Clave de API de Gemini",
                 btn_save_key: "Guardar Clave",
                 title_settings: "Criterios de Búsqueda y Filtrado",
-                lbl_targeturl: "URL del Puesto Objetivo",
+                lbl_searchquery: "Término de Búsqueda / Rol",
+                lbl_maxapps: "Límite Postulaciones",
                 lbl_minsalary: "Salario Mínimo Objetivo",
                 lbl_exp: "Experiencia (Años)",
                 lbl_keywords: "Palabras Clave Requeridas (Separadas por comas)",
@@ -468,7 +476,8 @@
             document.getElementById('lbl-apikey').textContent = t.lbl_apikey;
             document.getElementById('btn-save-key').textContent = t.btn_save_key;
             document.getElementById('title-settings').textContent = t.title_settings;
-            document.getElementById('lbl-targeturl').textContent = t.lbl_targeturl;
+            document.getElementById('lbl-searchquery').textContent = t.lbl_searchquery;
+            document.getElementById('lbl-maxapps').textContent = t.lbl_maxapps;
             document.getElementById('lbl-minsalary').textContent = t.lbl_minsalary;
             document.getElementById('lbl-exp').textContent = t.lbl_exp;
             document.getElementById('lbl-keywords').textContent = t.lbl_keywords;
@@ -623,22 +632,38 @@
         }
 
         async function runAgent() {
-            const url = document.getElementById('target-url').value;
+            const query = document.getElementById('search-query').value;
+            const limit = parseInt(document.getElementById('max-applications').value);
             const cvPath = document.getElementById('active-cv').value;
             
+            // Extract checked portals
+            const portalCheckboxes = document.querySelectorAll('input[name="portals"]:checked');
+            const portals = Array.from(portalCheckboxes).map(cb => cb.value);
+            
+            if (portals.length === 0) {
+                addLog("Please select at least one portal.", true);
+                return;
+            }
+            
             document.getElementById('bot-status').textContent = 'Running...';
-            addLog(`Agent triggered on job URL: ${url}`);
+            addLog(`Agent bulk run triggered.`);
+            addLog(`Query: '${query}' | Limit: ${limit} apps | Portals: [${portals.join(', ')}]`);
             
             try {
                 const res = await fetch('/api/run', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url, cv_path: cvPath })
+                    body: JSON.stringify({
+                        search_query: query,
+                        max_applications: limit,
+                        portals: portals,
+                        cv_path: cvPath
+                    })
                 });
                 const result = await res.json();
                 
                 if (res.ok) {
-                    addLog(`Execution completed: ${result.message}`);
+                    addLog(`Success: ${result.message}`);
                     if (result.logs) {
                         result.logs.forEach(l => addLog(l));
                     }
@@ -646,7 +671,7 @@
                     addLog(`Execution Error: ${result.detail}`, true);
                 }
             } catch (err) {
-                addLog("Connection timeout during run pipeline.", true);
+                addLog("Connection timeout during loop runs.", true);
             } finally {
                 document.getElementById('bot-status').textContent = 'Engine Ready';
             }

@@ -2,7 +2,7 @@
 """
 FastAPI Server backend for the GeminiJobBot Settings Dashboard.
 Manages configurations, handles resume file uploads (PDF, TXT, JSON),
-updates environment files, and runs the agent automation pipeline.
+updates environment files, and runs the agent bulk search automation pipeline.
 """
 
 import os
@@ -14,8 +14,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Import pipeline executor
-from src.orchestrator import run_pipeline
+# Import bulk pipeline executor
+from src.orchestrator import run_bulk_pipeline
 
 app = FastAPI(title="GeminiJobBot Dashboard API")
 
@@ -36,7 +36,9 @@ class SearchConfigUpdate(BaseModel):
 
 
 class RunAgentRequest(BaseModel):
-    url: str
+    search_query: str
+    max_applications: int
+    portals: List[str]
     cv_path: str
 
 
@@ -162,14 +164,12 @@ def update_api_key(payload: ApiKeyUpdate):
     if not key_val:
         raise HTTPException(status_code=400, detail="API key cannot be empty.")
 
-    # Read existing .env lines
     lines = []
     found = False
     if os.path.exists(ENV_PATH):
         with open(ENV_PATH, "r") as f:
             lines = f.readlines()
 
-    # Reconstruct lines
     new_lines = []
     for line in lines:
         if line.strip().startswith("GEMINI_API_KEY="):
@@ -184,9 +184,7 @@ def update_api_key(payload: ApiKeyUpdate):
     with open(ENV_PATH, "w") as f:
         f.writelines(new_lines)
 
-    # Set in running process environment
     os.environ["GEMINI_API_KEY"] = key_val
-    # Reload dotenv to align config
     load_dotenv()
 
     return {"status": "success", "message": "API Key updated successfully."}
@@ -195,20 +193,22 @@ def update_api_key(payload: ApiKeyUpdate):
 @app.post("/api/run")
 def run_agent(req: RunAgentRequest):
     """
-    Triggers the Playwright + Gemini agent loop.
+    Triggers the Playwright + Gemini bulk search and application agent loop.
     """
     if not os.path.exists(req.cv_path):
         raise HTTPException(status_code=400, detail=f"The selected CV path '{req.cv_path}' does not exist.")
 
     try:
-        logs = run_pipeline(
-            url=req.url,
+        logs = run_bulk_pipeline(
+            search_query=req.search_query,
+            max_applications=req.max_applications,
+            portals=req.portals,
             headless=True,
             blueprint_path=BLUEPRINT_PATH,
             user_data_dir="./.browser_session",
             cv_path=req.cv_path
         )
-        return {"status": "completed", "message": "Agent execution completed.", "logs": logs}
+        return {"status": "completed", "message": "Bulk automation pipeline completed.", "logs": logs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent loop error: {str(e)}")
 
