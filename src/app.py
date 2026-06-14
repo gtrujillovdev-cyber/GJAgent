@@ -67,10 +67,10 @@ def get_config():
         default_config = {
             "targeting": {"job_portals": ["LinkedIn", "Indeed"]},
             "filtering_rules": {
-                "minimum_salary": 130000,
+                "minimum_salary": 25000,
                 "currency": "EUR",
-                "target_keywords": ["AI", "Python", "Playwright"],
-                "experience_years_range": {"min": 4, "max": 12}
+                "target_keywords": ["Linux", "QA", "SDET", "Python"],
+                "experience_years_range": {"min": 0, "max": 10}
             },
             "dynamic_resume_routing": {
                 "rules": [],
@@ -195,7 +195,7 @@ def run_agent(req: RunAgentRequest):
     """
     Triggers the Playwright + Gemini bulk search and application agent loop.
     """
-    if not os.path.exists(req.cv_path):
+    if req.cv_path != "auto" and req.cv_path != "all" and not os.path.exists(req.cv_path):
         raise HTTPException(status_code=400, detail=f"The selected CV path '{req.cv_path}' does not exist.")
 
     try:

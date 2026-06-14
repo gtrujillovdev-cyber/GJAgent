@@ -3,7 +3,7 @@
 Orchestrator for the Gemini Job Application Subagent.
 This script coordinates real browser automation using Playwright,
 Gemini API calls via the modern google-genai SDK,
-dynamic profile loading, dynamic keyword extraction from CVs, and execution of bulk job applications.
+dynamic multi-profile loading, portal searches, and execution of bulk job applications.
 """
 
 import os
@@ -161,7 +161,7 @@ class PlaywrightBrowserEngine:
 class GeminiJobAgent:
     """
     Autonomous subagent powered by Gemini, designed to parse job details,
-    evaluate them against a specification, and execute form submissions.
+    evaluate them against a specification, select best matching CVs, and execute forms.
     """
     def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
         if not api_key:
@@ -201,13 +201,54 @@ class GeminiJobAgent:
             return keywords
         except Exception as e:
             logger.error(f"Error dynamically extracting keywords from CV: {e}")
-            # Static fallback in case of API failure
             return ["Python", "FastAPI", "Docker", "Playwright", "LLMs", "Agentic Frameworks"]
+
+    def select_best_cv(self, page_html: str, profiles: Dict[str, str]) -> str:
+        """
+        Given the job listing HTML and all loaded profile summaries, 
+        asks Gemini to dynamically select the best matching CV.
+        """
+        summarized_profiles = {}
+        for filename, content in profiles.items():
+            summarized_profiles[filename] = content[:1500] # Provide snippet
+
+        prompt = f"""
+        Compare the following job posting HTML details against all candidate CV profiles available.
+        Select the CV file that is the absolute best match for this role.
+        
+        Job HTML Content snippet:
+        \"\"\"{page_html[:8000]}\"\"\"
+        
+        Available Candidate Profiles (filename mapping to content snippet):
+        {json.dumps(summarized_profiles, indent=2)}
+        
+        Return a JSON response specifying the best matching profile filename:
+        {{
+          "selected_filename": "filename_here"
+        }}
+        """
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    system_instruction="You are an expert recruitment router. Compare job requisitions with multiple CVs and choose the best matching file."
+                )
+            )
+            data = json.loads(response.text.strip())
+            selected = data.get("selected_filename", "")
+            if selected in profiles:
+                return selected
+        except Exception as e:
+            logger.error(f"Error in dynamic AI CV selection: {e}")
+            
+        # Default fallback to first key
+        return list(profiles.keys())[0] if profiles else ""
 
     def analyze_job(self, page_html: str, blueprint: Dict[str, Any], cv_keywords: List[str]) -> Dict[str, Any]:
         """
-        Uses Gemini's reasoning capabilities to evaluate whether a job posting matches criteria,
-        relying primarily on CV keywords.
+        Uses Gemini's reasoning capabilities to evaluate whether a job posting matches criteria.
         """
         clean_html = re.sub(r'<script.*?</script>', '', page_html, flags=re.DOTALL)
         clean_html = re.sub(r'<style.*?</style>', '', clean_html, flags=re.DOTALL)
@@ -325,6 +366,7 @@ def run_bulk_pipeline(
 ) -> List[str]:
     """
     Runs search loops over multiple job portals and applies to matching jobs up to max_applications.
+    Supports dynamic routing across all loaded profiles if cv_path == "auto".
     """
     engine = PlaywrightBrowserEngine(headless=headless, user_data_dir=user_data_dir)
     engine.log(f"Starting bulk pipeline. Query: '{search_query}', Max Applications: {max_applications}, Portals: {portals}")
@@ -346,29 +388,45 @@ def run_bulk_pipeline(
         engine.log("GEMINI_API_KEY environment variable is missing in .env. Aborting.")
         return engine.log_history
 
-    # 3. Load CV Profile
-    if not os.path.exists(cv_path):
-        engine.log(f"Configured CV path '{cv_path}' missing. Aborting.")
+    # 3. Load CV Profile(s)
+    # Scan profiles directory for multi-profile evaluation
+    profiles_dict = {}
+    profiles_dir = "./profiles"
+    for filename in os.listdir(profiles_dir):
+        p_path = os.path.join(profiles_dir, filename)
+        if os.path.isfile(p_path) and not filename.startswith('.'):
+            if filename.lower().endswith(".pdf"):
+                text = extract_text_from_pdf(p_path)
+                if text:
+                    profiles_dict[p_path] = text
+            elif filename.lower().endswith(".json"):
+                with open(p_path, "r") as f:
+                    profiles_dict[p_path] = f.read()
+            elif filename.lower().endswith(".txt"):
+                with open(p_path, "r", encoding="utf-8", errors="ignore") as f:
+                    profiles_dict[p_path] = f.read()
+
+    if not profiles_dict:
+        engine.log("No valid candidate profiles found in './profiles'. Aborting.")
         return engine.log_history
 
-    engine.log(f"Loading candidate profile: {cv_path}")
-    if cv_path.lower().endswith(".pdf"):
-        resume_data = extract_text_from_pdf(cv_path)
-    elif cv_path.lower().endswith(".json"):
-        with open(cv_path, "r") as f:
-            resume_data = json.load(f)
-    else:
-        with open(cv_path, "r", encoding="utf-8", errors="ignore") as f:
-            resume_data = f.read()
-
-    # 4. Initialize Gemini Agent & Browser Engine
+    # Choose selection strategy
+    is_auto_routing = cv_path == "auto" or cv_path == "all" or not cv_path
+    
+    # Initialize Gemini Agent
     agent = GeminiJobAgent(api_key=api_key, model_name=model_name)
     
-    # 5. Extract CV Keywords Dynamically (Lo que prevalece en la decisión)
-    engine.log("Extracting profile keywords dynamically from CV to serve as target matching criteria...")
-    cv_keywords = agent.extract_keywords_from_cv(resume_data)
-    engine.log(f"Active Match Directives (CV Keywords): {cv_keywords}")
+    # If using single active CV, initialize keywords
+    selected_cv = cv_path if not is_auto_routing else list(profiles_dict.keys())[0]
     
+    if not is_auto_routing:
+        engine.log(f"Using single active CV profile: {selected_cv}")
+        resume_data = profiles_dict.get(selected_cv, "")
+        cv_keywords = agent.extract_keywords_from_cv(resume_data)
+    else:
+        engine.log("AI Auto-Routing enabled. The agent will compare job postings against all CV profiles in the folder dynamically.")
+        cv_keywords = [] # Dynamic per posting
+        
     applied_count = 0
     
     try:
@@ -381,7 +439,7 @@ def run_bulk_pipeline(
                 
             engine.log(f"--- Executing search on portal: {portal} ---")
             
-            # Construct search URL (Término de búsqueda orientativo)
+            # Construct search URL
             search_url = ""
             if portal == "LinkedIn":
                 search_url = f"https://www.linkedin.com/jobs/search/?keywords={search_query.replace(' ', '%20')}"
@@ -392,10 +450,7 @@ def run_bulk_pipeline(
             else:
                 search_url = f"https://www.google.com/search?q={search_query.replace(' ', '%20')}+jobs"
                 
-            # Navigate to Search Page
             engine.navigate_to(search_url)
-            
-            # Extract job urls
             job_urls = engine.extract_job_urls(portal)
             
             for idx, job_url in enumerate(job_urls):
@@ -406,6 +461,14 @@ def run_bulk_pipeline(
                 engine.log(f"Processing candidate job listing {idx+1}/{len(job_urls)}: {job_url}")
                 page_html = engine.navigate_to(job_url)
                 
+                # Dynamic Routing: Choose best fitting CV
+                if is_auto_routing:
+                    engine.log("Comparing job description against all loaded candidate CVs...")
+                    selected_cv = agent.select_best_cv(page_html, profiles_dict)
+                    engine.log(f"AI Dynamic Router selected CV: '{selected_cv}' for this job.")
+                    resume_data = profiles_dict.get(selected_cv, "")
+                    cv_keywords = agent.extract_keywords_from_cv(resume_data)
+
                 # Analyze matching against dynamic CV keywords
                 analysis = agent.analyze_job(page_html, blueprint, cv_keywords)
                 engine.log(f"Match Analysis: {json.dumps(analysis, indent=1)}")
@@ -448,16 +511,13 @@ def run_pipeline(url: str, headless: bool, blueprint_path: str, user_data_dir: s
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini Autonomous JobBot - Playwright Orchestrator")
-    parser.add_argument("--query", type=str, default="AI Engineer",
-                        help="Job role search query keywords")
-    parser.add_argument("--limit", type=int, default=2,
-                        help="Max number of applications to submit")
-    parser.add_argument("--portals", type=str, default="LinkedIn,Indeed",
-                        help="Comma separated list of target portals")
+    parser.add_argument("--query", type=str, default="AI Engineer")
+    parser.add_argument("--limit", type=int, default=2)
+    parser.add_argument("--portals", type=str, default="LinkedIn,Indeed")
     parser.add_argument("--headless", action="store_true", default=False)
     parser.add_argument("--blueprint", type=str, default="blueprints/candidate_spec.json")
     parser.add_argument("--user-data-dir", type=str, default="./.browser_session")
-    parser.add_argument("--cv", type=str, default="profiles/resume_template.json")
+    parser.add_argument("--cv", type=str, default="auto")
 
     args = parser.parse_args()
     portals_list = [p.strip() for p in args.portals.split(",")]

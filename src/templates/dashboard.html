@@ -338,7 +338,7 @@
                     <div class="form-group" style="flex: 1.5;">
                         <label id="lbl-minsalary">Minimum Salary Target</label>
                         <div style="display: flex; gap: 0.3rem;">
-                            <input type="number" id="min-salary" value="45000">
+                            <input type="number" id="min-salary" value="25000">
                             <select id="salary-currency" style="width: 80px;">
                                 <option value="EUR">EUR (€)</option>
                                 <option value="USD">USD ($)</option>
@@ -349,7 +349,7 @@
                     <div class="form-group" style="flex: 1;">
                         <label id="lbl-exp">Experience (Years)</label>
                         <div style="display: flex; gap: 0.3rem; align-items: center;">
-                            <input type="number" id="exp-min" value="3">
+                            <input type="number" id="exp-min" value="0">
                             <span>-</span>
                             <input type="number" id="exp-max" value="10">
                         </div>
@@ -358,7 +358,7 @@
 
                 <div class="form-group">
                     <label id="lbl-keywords">Target Keywords (Comma Separated)</label>
-                    <input type="text" id="target-keywords" value="Linux, QA, SDET, Python, Docker, Bash, Swift, LangChain, CI/CD">
+                    <input type="text" id="target-keywords" value="Linux, QA, SDET, Python, Docker, Bash, Swift, LangChain, CI/CD, Automation, Testing">
                 </div>
 
                 <div class="row-flex" style="margin-top: auto;">
@@ -377,7 +377,7 @@
                 <div class="form-group">
                     <label id="lbl-activecv">Active CV Guide File</label>
                     <select id="active-cv">
-                        <option value="profiles/Gabriel_Trujillo_CV_2026.pdf">Gabriel_Trujillo_CV_2026.pdf (PDF)</option>
+                        <option value="auto">🤖 AI Dynamic Routing (Multi-profile)</option>
                     </select>
                 </div>
 
@@ -588,17 +588,16 @@
                 container.innerHTML = '';
                 select.innerHTML = '';
                 
-                let selectedFound = false;
+                // Add AI Auto Routing Option first
+                const autoOpt = document.createElement('option');
+                autoOpt.value = 'auto';
+                autoOpt.textContent = currentLang === 'ES' ? '🤖 Ruteo Inteligente por IA (Multiperfil)' : '🤖 AI Auto-Routing (Multi-profile)';
+                select.appendChild(autoOpt);
+                
                 files.forEach(file => {
                     const opt = document.createElement('option');
                     opt.value = `profiles/${file.name}`;
                     opt.textContent = `${file.name} (${file.type.toUpperCase()})`;
-                    
-                    // Set user CV as default selection if present
-                    if (file.name.includes("Gabriel_Trujillo_CV")) {
-                        opt.selected = true;
-                        selectedFound = true;
-                    }
                     select.appendChild(opt);
                     
                     const item = document.createElement('div');
@@ -609,10 +608,6 @@
                     `;
                     container.appendChild(item);
                 });
-                
-                if (!selectedFound && files.length > 0) {
-                    select.selectedIndex = 0;
-                }
             } catch (err) {
                 addLog("Could not load resumes directory.", true);
             }
