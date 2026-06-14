@@ -7,9 +7,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0b0f19;
-            --card-bg: rgba(17, 25, 40, 0.75);
-            --border-color: rgba(255, 255, 255, 0.08);
+            --bg-color: #05070a;
+            --card-bg: rgba(17, 25, 40, 0.45);
+            --border-color: rgba(255, 255, 255, 0.1);
             --accent-glow: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
             --text-color: #f3f4f6;
             --text-muted: #9ca3af;
@@ -20,13 +20,13 @@
         }
 
         [data-theme="light"] {
-            --bg-color: #f3f4f6;
-            --card-bg: rgba(255, 255, 255, 0.9);
-            --border-color: rgba(0, 0, 0, 0.08);
+            --bg-color: #e2e8f0;
+            --card-bg: rgba(255, 255, 255, 0.55);
+            --border-color: rgba(255, 255, 255, 0.7);
             --accent-glow: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
             --text-color: #111827;
             --text-muted: #4b5563;
-            --input-bg: rgba(0, 0, 0, 0.04);
+            --input-bg: rgba(255, 255, 255, 0.7);
         }
 
         * {
@@ -60,6 +60,9 @@
             border: 1px solid var(--border-color);
             border-radius: 16px;
             flex-shrink: 0;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
         }
 
         header h1 {
@@ -126,8 +129,16 @@
             display: flex;
             flex-direction: column;
             gap: 0.8rem;
-            box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             min-height: 0; /* Prevent expanding beyond grid container */
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.15);
         }
 
         .card-stretch {
@@ -162,12 +173,14 @@
             border-radius: 10px;
             color: var(--text-color);
             font-size: 0.85rem;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(4px);
         }
 
         input[type="text"]:focus, input[type="number"]:focus, select:focus {
             outline: none;
             border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
         }
 
         .checkbox-group {
@@ -190,6 +203,24 @@
 
         .checkbox-tile input {
             accent-color: var(--primary);
+        }
+
+        .console {
+            background: #111827;
+            color: #10b981;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            padding: 1.5rem;
+            border-radius: 12px;
+            height: 500px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.05);
+            line-height: 1.5;
+            word-break: break-all;
         }
 
         .btn {
@@ -274,6 +305,99 @@
             font-size: 0.7rem;
         }
 
+        .stepper {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1250px;
+            margin-bottom: 1rem;
+            flex-shrink: 0;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1rem 2rem;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            opacity: 0.4;
+            transition: all 0.4s ease;
+        }
+
+        .step.active {
+            opacity: 1;
+        }
+
+        .step.active .step-icon {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 0 15px var(--primary);
+            transform: scale(1.1);
+        }
+        
+        .step.completed .step-icon {
+            background: var(--success);
+            color: white;
+            border-color: var(--success);
+        }
+        
+        .step.error .step-icon {
+            background: var(--danger);
+            color: white;
+            border-color: var(--danger);
+            box-shadow: 0 0 15px var(--danger);
+        }
+
+        .step-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.8rem;
+            transition: all 0.4s ease;
+            background: var(--input-bg);
+            color: var(--text-muted);
+        }
+
+        .step-text {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .step-connector {
+            flex-grow: 1;
+            height: 2px;
+            background: var(--border-color);
+            margin: 0 1rem;
+            align-self: center;
+            position: relative;
+        }
+        
+        .step-connector::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 0%;
+            background: var(--primary);
+            transition: width 0.5s ease;
+        }
+        
+        .step.completed + .step-connector::after {
+            width: 100%;
+        }
+
         .row-flex {
             display: flex;
             gap: 0.8rem;
@@ -297,9 +421,32 @@
             <button class="toggle-btn" onclick="setTheme('dark')">🌙</button>
             <button class="toggle-btn" onclick="setTheme('system')">🖥️</button>
             
-            <div class="status-badge" id="bot-status" style="border: 1px solid var(--success); color: #34d399; font-size:0.75rem; padding: 0.2rem 0.6rem; border-radius: 12px;">Engine Ready</div>
+            <div class="status-badge" id="bot-status" style="border: 1px solid var(--success); color: #34d399; font-size:0.75rem; padding: 0.2rem 0.6rem; border-radius: 12px; background: rgba(16, 185, 129, 0.1);">Engine Ready</div>
         </div>
     </header>
+
+    <!-- Visual Progress Stepper -->
+    <div class="stepper" id="progress-stepper">
+        <div class="step active" id="step-1">
+            <div class="step-icon">1</div>
+            <div class="step-text" id="lbl-step1">Preparando</div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" id="step-2">
+            <div class="step-icon">2</div>
+            <div class="step-text" id="lbl-step2">Buscando</div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" id="step-3">
+            <div class="step-icon">3</div>
+            <div class="step-text" id="lbl-step3">Analizando / Postulando</div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" id="step-4">
+            <div class="step-icon">4</div>
+            <div class="step-text" id="lbl-step4">Finalizado</div>
+        </div>
+    </div>
 
     <main>
         <!-- Left Column: Credentials & Console Logs -->
@@ -358,11 +505,13 @@
                     </label>
                 </div>
 
+                <!-- Row 1: Búsqueda Principal -->
                 <div class="row-flex">
                     <div class="form-group" style="flex: 1;">
                         <label id="lbl-jobsource">Job Source / Origen</label>
                         <select id="job-source" onchange="toggleJobSource()" style="padding: 0.6rem 0.8rem; font-size: 0.85rem;">
                             <option value="search">🔍 Portal Live Search</option>
+                            <option value="auto">✨ AI Auto Discovery (HR Engine)</option>
                             <option value="imported">🤖 Imported Agent Jobs</option>
                         </select>
                     </div>
@@ -370,17 +519,34 @@
                         <label id="lbl-searchquery">Search Keywords / Role</label>
                         <input type="text" id="search-query" placeholder="e.g. QA Automation" value="QA Automation">
                     </div>
+                </div>
+
+                <!-- Row 2: Ubicación y Límites -->
+                <div class="row-flex">
+                    <div class="form-group" style="flex: 2;">
+                        <label id="lbl-location">Target Location</label>
+                        <div style="display: flex; gap: 0.3rem;">
+                            <input type="text" id="location" placeholder="e.g. Madrid" style="flex: 1.5;" value="Sevilla">
+                            <select id="work-model" style="flex: 1; padding: 0.6rem 0.5rem; font-size: 0.8rem;">
+                                <option value="Any">🌐 Any</option>
+                                <option value="Remote">🏠 Remote</option>
+                                <option value="Hybrid">🏢 Hybrid</option>
+                                <option value="On-site">📍 On-site</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="form-group" style="flex: 0.8;">
                         <label id="lbl-maxapps">Max Apps</label>
-                        <input type="number" id="max-applications" value="20" min="1" max="100">
+                        <input type="number" id="max-applications" value="2" min="1" max="100">
                     </div>
                 </div>
 
+                <!-- Row 3: Filtros Económicos y Nivel -->
                 <div class="row-flex">
                     <div class="form-group" style="flex: 1.5;">
                         <label id="lbl-minsalary">Minimum Salary Target</label>
                         <div style="display: flex; gap: 0.3rem;">
-                            <input type="number" id="min-salary" value="25000">
+                            <input type="number" id="min-salary" value="12000">
                             <select id="salary-currency" style="width: 80px;">
                                 <option value="EUR">EUR (€)</option>
                                 <option value="USD">USD ($)</option>
@@ -393,11 +559,12 @@
                         <div style="display: flex; gap: 0.3rem; align-items: center;">
                             <input type="number" id="exp-min" value="0">
                             <span>-</span>
-                            <input type="number" id="exp-max" value="10">
+                            <input type="number" id="exp-max" value="1">
                         </div>
                     </div>
                 </div>
 
+                <!-- Row 4: Palabras clave -->
                 <div class="form-group">
                     <label id="lbl-keywords">Target Keywords (Comma Separated)</label>
                     <input type="text" id="target-keywords" value="Linux, QA, SDET, Python, Docker, Bash, Swift, LangChain, CI/CD, Automation, Testing">
@@ -443,6 +610,7 @@
                 btn_save_key: "Save Key",
                 title_settings: "Search & Filtering Criteria",
                 lbl_searchquery: "Search Keywords / Role",
+                lbl_location: "Target Location",
                 lbl_maxapps: "Max Applications",
                 lbl_minsalary: "Minimum Salary Target",
                 lbl_exp: "Experience (Years)",
@@ -456,7 +624,11 @@
                 title_console: "Execution Console Logs",
                 log_init: "Dashboard console initialized. Setup parameters above and run the subagent.",
                 lbl_showbrowser: "Show Browser",
-                lbl_model: "Gemini Model"
+                lbl_model: "Gemini Model",
+                step_1: "Preparing",
+                step_2: "Searching Jobs",
+                step_3: "Applying",
+                step_4: "Finished"
             },
             ES: {
                 subtitle: "Subagente Autónomo de Postulación de Empleo",
@@ -465,6 +637,7 @@
                 btn_save_key: "Guardar Clave",
                 title_settings: "Criterios de Búsqueda y Filtrado",
                 lbl_searchquery: "Término de Búsqueda / Rol",
+                lbl_location: "Ubicación Objetivo",
                 lbl_maxapps: "Límite Postulaciones",
                 lbl_minsalary: "Salario Mínimo Objetivo",
                 lbl_exp: "Experiencia (Años)",
@@ -478,12 +651,38 @@
                 title_console: "Consola de Registros de Ejecución",
                 log_init: "Consola del panel inicializada. Configura los parámetros arriba e inicia el subagente.",
                 lbl_showbrowser: "Mostrar Navegador",
-                lbl_model: "Modelo Gemini"
+                lbl_model: "Modelo Gemini",
+                step_1: "Preparando",
+                step_2: "Buscando Vacantes",
+                step_3: "Postulando",
+                step_4: "Finalizado"
             }
         };
 
         window.onload = function() {
             setTheme('system');
+            try {
+                const savedState = localStorage.getItem('jobBotUiState');
+                if (savedState) {
+                    const state = JSON.parse(savedState);
+                    if (state.model) document.getElementById('gemini-model').value = state.model;
+                    if (state.source) {
+                        document.getElementById('job-source').value = state.source;
+                        toggleJobSource();
+                    }
+                    if (state.query) document.getElementById('search-query').value = state.query;
+                    if (state.location) document.getElementById('location').value = state.location;
+                    if (state.workModel) document.getElementById('work-model').value = state.workModel;
+                    if (state.maxApps) document.getElementById('max-applications').value = state.maxApps;
+                    if (state.showBrowser !== undefined) document.getElementById('show-browser').checked = state.showBrowser;
+                    if (state.portals) {
+                        document.querySelectorAll('input[name="portals"]').forEach(cb => {
+                            cb.checked = state.portals.includes(cb.value);
+                        });
+                    }
+                }
+            } catch (e) { console.error("Error loading localStorage state"); }
+            
             loadApiKey();
             loadConfig();
             loadCVs();
@@ -515,6 +714,7 @@
             document.getElementById('btn-save-key').textContent = t.btn_save_key;
             document.getElementById('title-settings').textContent = t.title_settings;
             document.getElementById('lbl-searchquery').textContent = t.lbl_searchquery;
+            document.getElementById('lbl-location').textContent = t.lbl_location;
             document.getElementById('lbl-maxapps').textContent = t.lbl_maxapps;
             document.getElementById('lbl-minsalary').textContent = t.lbl_minsalary;
             document.getElementById('lbl-exp').textContent = t.lbl_exp;
@@ -528,6 +728,13 @@
             document.getElementById('title-console').textContent = t.title_console;
             document.getElementById('lbl-showbrowser').textContent = t.lbl_showbrowser;
             document.getElementById('lbl-model').textContent = t.lbl_model;
+            
+            if (document.getElementById('lbl-step1')) {
+                document.getElementById('lbl-step1').textContent = t.step_1;
+                document.getElementById('lbl-step2').textContent = t.step_2;
+                document.getElementById('lbl-step3').textContent = t.step_3;
+                document.getElementById('lbl-step4').textContent = t.step_4;
+            }
         }
 
         function addLog(message, isErr = false) {
@@ -535,6 +742,20 @@
             const entry = document.createElement("div");
             entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
             if (isErr) entry.style.color = '#ef4444';
+            
+            if (message.includes("[ACTION_REQUIRED]")) {
+                entry.style.color = '#f59e0b'; // Amber
+                entry.style.fontWeight = 'bold';
+                
+                const statusDiv = document.getElementById('bot-status');
+                if (statusDiv) {
+                    statusDiv.textContent = window.currentLang === 'ES' ? 'Aviso: Acción Requerida' : 'Notice: Action Required';
+                    statusDiv.style.borderColor = '#f59e0b';
+                    statusDiv.style.color = '#f59e0b';
+                    statusDiv.style.background = 'rgba(245, 158, 11, 0.1)';
+                }
+            }
+            
             consoleDiv.appendChild(entry);
             consoleDiv.scrollTop = consoleDiv.scrollHeight;
         }
@@ -585,9 +806,9 @@
                 document.getElementById('exp-max').value = data.filtering_rules.experience_years_range.max;
                 document.getElementById('target-keywords').value = data.filtering_rules.target_keywords.join(', ');
                 
-                addLog("Settings specifications successfully sync'd.");
+                addLog("Configuración cargada del servidor.");
             } catch (err) {
-                addLog("Failed to synchronize specifications.", true);
+                addLog("Error al sincronizar configuración del servidor.", true);
             }
         }
 
@@ -598,6 +819,19 @@
             const expMax = parseInt(document.getElementById('exp-max').value);
             const keywords = document.getElementById('target-keywords').value.split(',').map(k => k.trim());
             
+            // Save UI state to localStorage
+            const uiState = {
+                model: document.getElementById('gemini-model').value,
+                source: document.getElementById('job-source').value,
+                query: document.getElementById('search-query').value,
+                location: document.getElementById('location').value,
+                workModel: document.getElementById('work-model').value,
+                maxApps: document.getElementById('max-applications').value,
+                showBrowser: document.getElementById('show-browser').checked,
+                portals: Array.from(document.querySelectorAll('input[name="portals"]:checked')).map(cb => cb.value)
+            };
+            localStorage.setItem('jobBotUiState', JSON.stringify(uiState));
+
             const payload = {
                 minimum_salary: minSalary,
                 currency: currency,
@@ -613,12 +847,12 @@
                 });
                 
                 if (res.ok) {
-                    addLog("Search specifications saved.");
+                    addLog("Ajustes guardados correctamente.");
                 } else {
-                    addLog("Failed to save specifications.", true);
+                    addLog("Error al guardar ajustes en servidor.", true);
                 }
             } catch (err) {
-                addLog("Failed saving settings.", true);
+                addLog("Fallo al guardar ajustes.", true);
             }
         }
 
@@ -685,14 +919,23 @@
             const queryContainer = document.getElementById('container-searchquery');
             const portalCheckboxes = document.querySelectorAll('input[name="portals"]');
             
-            if (source === 'imported') {
+            if (source === 'imported' || source === 'auto') {
                 queryContainer.style.opacity = '0.5';
                 document.getElementById('search-query').disabled = true;
-                portalCheckboxes.forEach(cb => {
-                    cb.disabled = true;
-                    cb.parentElement.style.opacity = '0.5';
-                });
-                loadDiscoveredJobsCount();
+                
+                if (source === 'imported') {
+                    portalCheckboxes.forEach(cb => {
+                        cb.disabled = true;
+                        cb.parentElement.style.opacity = '0.5';
+                    });
+                    loadDiscoveredJobsCount();
+                } else {
+                    // Auto Discovery mode enables portals
+                    portalCheckboxes.forEach(cb => {
+                        cb.disabled = false;
+                        cb.parentElement.style.opacity = '1';
+                    });
+                }
             } else {
                 queryContainer.style.opacity = '1';
                 document.getElementById('search-query').disabled = false;
@@ -701,6 +944,33 @@
                     cb.parentElement.style.opacity = '1';
                 });
             }
+        }
+        
+        function setStep(stepNum, status = 'active') {
+            const steps = [1, 2, 3, 4];
+            steps.forEach(num => {
+                const stepEl = document.getElementById(`step-${num}`);
+                if (!stepEl) return;
+                
+                if (status === 'error') {
+                    if (num === stepNum) {
+                        stepEl.className = 'step active error';
+                    } else if (num < stepNum) {
+                        stepEl.className = 'step completed';
+                    } else {
+                        stepEl.className = 'step';
+                    }
+                    return;
+                }
+
+                if (num < stepNum) {
+                    stepEl.className = 'step completed';
+                } else if (num === stepNum) {
+                    stepEl.className = 'step active';
+                } else {
+                    stepEl.className = 'step';
+                }
+            });
         }
         
         async function loadDiscoveredJobsCount() {
@@ -721,8 +991,12 @@
             let query = document.getElementById('search-query').value;
             if (source === 'imported') {
                 query = '__imported__';
+            } else if (source === 'auto') {
+                query = '__auto__';
             }
             const limit = parseInt(document.getElementById('max-applications').value);
+            const locationVal = document.getElementById('location').value;
+            const workModelVal = document.getElementById('work-model').value;
             const cvPath = document.getElementById('active-cv').value;
             const showBrowser = document.getElementById('show-browser').checked;
             
@@ -737,9 +1011,12 @@
             document.getElementById('bot-status').textContent = currentLang === 'ES' ? 'Buscando...' : 'Running...';
             document.getElementById('bot-status').style.borderColor = '#3b82f6';
             document.getElementById('bot-status').style.color = '#3b82f6';
+            document.getElementById('bot-status').style.background = 'rgba(59, 130, 246, 0.1)';
             
             document.getElementById("console").innerHTML = "";
             addLog(currentLang === 'ES' ? "Automatización iniciada en segundo plano..." : "Background worker started. Listening to live logs...");
+            
+            setStep(1); // Reset stepper to Preparing
             
             try {
                 const res = await fetch('/api/run', {
@@ -747,6 +1024,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         search_query: query,
+                        location: locationVal,
+                        work_model: workModelVal,
                         max_applications: limit,
                         portals: source === 'imported' ? ['LinkedIn'] : portals,
                         cv_path: cvPath,
@@ -766,17 +1045,35 @@
                             
                             if (logs.length > lastLogIndex) {
                                 for (let i = lastLogIndex; i < logs.length; i++) {
-                                    addLog(logs[i]);
+                                    const logLine = logs[i];
+                                    addLog(logLine);
+                                    
+                                    // Stepper logic based on logs
+                                    const lowerLog = logLine.toLowerCase();
+                                    if (lowerLog.includes("executing search on portal") || lowerLog.includes("auto discovery mode active")) {
+                                        setStep(2);
+                                    } else if (lowerLog.includes("comparing job description") || lowerLog.includes("processing candidate job") || lowerLog.includes("fill_form_agentic")) {
+                                        setStep(3);
+                                    }
                                 }
                                 lastLogIndex = logs.length;
                             }
                             
                             const lastLine = logs[logs.length - 1] || "";
-                            if (lastLine.includes("Pipeline finished") || lastLine.includes("Fatal error")) {
+                            if (lastLine.includes("Pipeline finished")) {
                                 clearInterval(logPoller);
-                                document.getElementById('bot-status').textContent = currentLang === 'ES' ? 'Listo' : 'Engine Ready';
+                                setStep(4);
+                                document.getElementById('bot-status').textContent = currentLang === 'ES' ? 'Completado' : 'Finished';
                                 document.getElementById('bot-status').style.borderColor = '#10b981';
                                 document.getElementById('bot-status').style.color = '#34d399';
+                                document.getElementById('bot-status').style.background = 'rgba(16, 185, 129, 0.1)';
+                            } else if (lastLine.includes("Fatal error") || lastLine.includes("Aborting")) {
+                                clearInterval(logPoller);
+                                setStep(4, 'error');
+                                document.getElementById('bot-status').textContent = 'Error';
+                                document.getElementById('bot-status').style.borderColor = '#ef4444';
+                                document.getElementById('bot-status').style.color = '#ef4444';
+                                document.getElementById('bot-status').style.background = 'rgba(239, 68, 68, 0.1)';
                             }
                         } catch (err) {
                             console.error("Polling error", err);

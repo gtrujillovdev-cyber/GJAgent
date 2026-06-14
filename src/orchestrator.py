@@ -88,7 +88,7 @@ class PlaywrightBrowserEngine:
         append_live_log(message)
 
     def start(self):
-        self.log(f"Launching Playwright (Headless={self.headless}, UserDataDir={self.user_data_dir})")
+        self.log(f"Iniciando Playwright (Headless={self.headless}, UserDataDir={self.user_data_dir})")
         self.playwright = sync_playwright().start()
         self.context = self.playwright.chromium.launch_persistent_context(
             user_data_dir=self.user_data_dir,
@@ -178,55 +178,103 @@ class PlaywrightBrowserEngine:
             return mock_html
 
         try:
-            self.page.goto(url, wait_until="networkidle", timeout=6000)
+            self.page.goto(url, wait_until="domcontentloaded", timeout=10000)
+            # EU Google Consent Bypass
+            html = self.page.content()
+            if "consent.google.com" in self.page.url or "Aceptar todo" in html or "Accept all" in html:
+                self.log("Evadiendo pantalla de Consentimiento de Google...")
+                try:
+                    accept_btn = self.page.locator('button:has-text("Aceptar todo"), button:has-text("Accept all")')
+                    if accept_btn.count() > 0:
+                        accept_btn.first.click(timeout=3000)
+                        self.page.wait_for_load_state("domcontentloaded")
+                except Exception:
+                    pass
         except Exception as e:
-            self.log(f"Navigation ended or timed out: {e}")
+            self.log(f"Navegación finalizada o tiempo agotado: {e}")
+            
+        self.check_login_wall()
+            
         return self.page.content()
 
-    def extract_job_urls(self, portal: str) -> List[str]:
-        """
-        Scrapes job listing links from the current search results page (supports Google Search routing).
-        """
-        urls = []
+    def check_login_wall(self):
+        url = self.page.url
+        if "linkedin.com" in url:
+            if "authwall" in url or "/login" in url or self.page.locator('form.login__form').count() > 0 or self.page.locator('input#session_key').count() > 0:
+                self.log("[ACTION_REQUIRED] Por favor, inicia sesión en LinkedIn en el navegador abierto para continuar...")
+                self.log("Esperando hasta 3 minutos a que inicies sesión manualmente...")
+                try:
+                    self.page.wait_for_url("**/jobs/search/**", timeout=180000)
+                    self.log("Inicio de sesión detectado o evadido. Retomando automatización.")
+                except Exception:
+                    self.log("Tiempo de espera para inicio de sesión agotado.")
+        elif "indeed.com" in url:
+            # Indeed doesn't always block searches, but if it shows Cloudflare or login wall:
+            if "cf-browser-verification" in self.page.content() or "/account/login" in url:
+                self.log("[ACTION_REQUIRED] Resuelve el Captcha o inicia sesión en Indeed en el navegador abierto...")
+                try:
+                    self.page.wait_for_selector('a[id*="jobTitle"]', timeout=60000)
+                    self.log("Acceso a Indeed detectado. Retomando.")
+                except Exception:
+                    self.log("Tiempo de espera en Indeed agotado.")
+
+    def extract_job_snippets(self, portal: str) -> list:
+        snippets = []
         try:
-            self.log(f"Parsing job listing elements from search page...")
-            hrefs = self.page.evaluate('''() => {
-                return Array.from(document.querySelectorAll('a'))
-                    .map(anchor => anchor.href);
-            }''')
+            self.log(f"Extrayendo resúmenes de empleos directamente de {portal}...")
             
-            seen = set()
-            for href in hrefs:
-                if portal == "LinkedIn" and "linkedin.com/jobs/view" in href:
-                    # Parse clean LinkedIn job URL
-                    clean_href = href
-                    if "?" in href:
-                        clean_href = href.split("?")[0]
-                    if clean_href not in seen:
-                        seen.add(clean_href)
-                        urls.append(clean_href)
-                elif portal == "Indeed" and ("indeed.com/rc/clk" in href or "indeed.com/viewjob" in href or "indeed.com/jobs" in href):
-                    if href not in seen:
-                        seen.add(href)
-                        urls.append(href)
-                elif portal == "Glassdoor" and "glassdoor.com" in href and "/Job/" in href:
-                    clean_href = href.split('?')[0]
-                    if clean_href not in seen:
-                        seen.add(clean_href)
-                        urls.append(clean_href)
+            if portal == "LinkedIn":
+                extracted = self.page.evaluate('''() => {
+                    return Array.from(document.querySelectorAll('a')).filter(a => a.href.includes('/view/') || a.href.includes('/job/')).map(anchor => {
+                        let container = anchor.closest('li') || anchor.closest('div');
+                        let titleEl = container ? (container.querySelector('h3') || container.querySelector('span[dir="ltr"]') || anchor) : anchor;
+                        let title = titleEl.innerText;
+                        let snippet = container ? container.innerText.replace(title, '').substring(0, 400) : '';
+                        return { url: anchor.href, title: title, snippet: snippet };
+                    }).filter(r => r.url && r.title && r.title.length > 3);
+                }''')
+            elif portal == "Indeed":
+                extracted = self.page.evaluate('''() => {
+                    return Array.from(document.querySelectorAll('a[id*="jobTitle"], a.jcs-JobTitle')).map(anchor => {
+                        let container = anchor.closest('td') || anchor.closest('div.cardOutline') || anchor.closest('li');
+                        let title = anchor.innerText;
+                        let snippet = container ? container.innerText.replace(title, '').substring(0, 400) : '';
+                        return { url: anchor.href, title: title, snippet: snippet };
+                    }).filter(r => r.url && r.title);
+                }''')
+            else:
+                # Fallback genérico a Google Search
+                extracted = self.page.evaluate('''() => {
+                    return Array.from(document.querySelectorAll('a')).filter(a => a.querySelector('h3')).map(anchor => {
+                        const title = anchor.querySelector('h3');
+                        let container = anchor.parentElement;
+                        let attempts = 0;
+                        while (container && container.innerText.length < 100 && attempts < 5) {
+                            container = container.parentElement;
+                            attempts++;
+                        }
+                        return {
+                            url: anchor.href,
+                            title: title ? title.innerText : null,
+                            snippet: container ? container.innerText.replace(title.innerText, '').substring(0, 400) : null
+                        };
+                    }).filter(r => r.url && (r.url.includes('jobs/view') || r.url.includes('rc/clk') || r.url.includes('viewjob') || r.url.includes('jobs')));
+                }''')
+                
+            # Eliminar duplicados por URL base
+            unique_snippets = []
+            seen_urls = set()
+            for s in extracted:
+                clean_url = s['url'].split('?')[0] if 'linkedin' in s['url'] else s['url']
+                if clean_url not in seen_urls:
+                    seen_urls.add(clean_url)
+                    unique_snippets.append(s)
             
-            self.log(f"Extracted {len(urls)} job listing URLs for {portal} from search page.")
+            snippets.extend(unique_snippets)
+            self.log(f"Extraídos {len(snippets)} resúmenes para {portal}.")
         except Exception as e:
-            self.log(f"Error extracting job links: {e}")
-            
-        if not urls:
-            self.log("No active elements found on search page. Generating simulated job links for demonstration...")
-            urls = [
-                f"https://careers.linkedin.com/jobs/senior-ai-engineer-101",
-                f"https://careers.linkedin.com/jobs/python-agentic-developer-204",
-                f"https://careers.linkedin.com/jobs/backend-systems-programmer-502"
-            ]
-        return urls
+            self.log(f"Error extrayendo resúmenes: {e}")
+        return snippets
 
     def fill_form_field(self, selector: str, value: str) -> bool:
         try:
@@ -259,7 +307,7 @@ class PlaywrightBrowserEngine:
             self.context.close()
         if self.playwright:
             self.playwright.stop()
-        self.log("Browser engine terminated.")
+        self.log("Motor de navegador finalizado.")
 
 
 class GeminiJobAgent:
@@ -279,11 +327,12 @@ class GeminiJobAgent:
         contents: str,
         system_instruction: str = None,
         response_mime_type: str = "application/json",
-        max_retries: int = 5,
-        initial_delay: float = 2.0
+        max_retries: int = 8,
+        initial_delay: float = 4.0
     ) -> Any:
         import time
         import random
+        import re
         delay = initial_delay
         for attempt in range(max_retries):
             try:
@@ -303,11 +352,18 @@ class GeminiJobAgent:
                     if attempt == max_retries - 1:
                         logger.error(f"Gemini API rate limit exceeded. Max retries ({max_retries}) reached. Error: {e}")
                         raise
-                    jitter = random.uniform(0.8, 1.2)
-                    sleep_time = delay * jitter
+                    
+                    # Intentar extraer el tiempo de espera recomendado por Google
+                    match = re.search(r"retry in (\d+\.?\d*)s", err_str)
+                    if match:
+                        sleep_time = float(match.group(1)) + 5.0 # Añadimos 5s de margen extra
+                    else:
+                        jitter = random.uniform(0.8, 1.2)
+                        sleep_time = delay * jitter
+                        delay *= 2.0
+                        
                     logger.warning(f"Gemini API 429 Rate Limit hit. Retrying in {sleep_time:.2f} seconds (Attempt {attempt+1}/{max_retries})...")
                     time.sleep(sleep_time)
-                    delay *= 2.0
                 else:
                     logger.error(f"Gemini API call failed with non-retryable error: {e}")
                     raise
@@ -354,16 +410,20 @@ class GeminiJobAgent:
         Given the job listing HTML and all loaded profile summaries, 
         asks Gemini to dynamically select the best matching CV.
         """
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(page_html, 'html.parser')
+        clean_text = soup.get_text(separator=' ', strip=True)[:30000]
+
         summarized_profiles = {}
         for filename, content in profiles.items():
             summarized_profiles[filename] = content[:1500]
 
         prompt = f"""
-        Compare the following job posting HTML details against all candidate CV profiles available.
+        Compare the following job posting text against all candidate CV profiles available.
         Select the CV file that is the absolute best match for this role.
         
-        Job HTML Content snippet:
-        \"\"\"{page_html[:8000]}\"\"\"
+        Job Text Content:
+        \"\"\"{clean_text[:8000]}\"\"\"
         
         Available Candidate Profiles (filename mapping to content snippet):
         {json.dumps(summarized_profiles, indent=2)}
@@ -383,28 +443,43 @@ class GeminiJobAgent:
             if selected in profiles:
                 return selected
         except Exception as e:
-            logger.error(f"Error in dynamic AI CV selection: {e}")
+            logger.error(f"Error in discovery query generation: {e}")
+            return ""
             
         return list(profiles.keys())[0] if profiles else ""
+
+    def pre_filter_jobs(self, snippets: list, profiles_dict: dict, location: str, work_model: str) -> list:
+        if not snippets:
+            return []
+        prompt = f"Evalúa estos {len(snippets)} resúmenes de vacantes para los perfiles candidatos: {list(profiles_dict.keys())}\nUbicación: {location}, Modelo: {work_model}\nResúmenes:\n{snippets}\nDevuelve un JSON con una lista de SOLO las URLs altamente relevantes."
+        try:
+            from google import genai
+            from google.genai import types
+            res = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+            import json
+            data = json.loads(res.text)
+            if isinstance(data, list): return data
+            return []
+        except Exception:
+            return [s['url'] for s in snippets]
 
     def analyze_job(self, page_html: str, blueprint: Dict[str, Any], cv_keywords: List[str]) -> Dict[str, Any]:
         """
         Uses Gemini's reasoning capabilities to evaluate whether a job posting matches criteria.
         """
-        clean_html = re.sub(r'<script.*?</script>', '', page_html, flags=re.DOTALL)
-        clean_html = re.sub(r'<style.*?</style>', '', clean_html, flags=re.DOTALL)
-        clean_html = re.sub(r'<svg.*?</svg>', '', clean_html, flags=re.DOTALL)
-        body_match = re.search(r'<body.*?>.*?</body>', clean_html, flags=re.DOTALL | re.IGNORECASE)
-        if body_match:
-            clean_html = body_match.group(0)
-
-        clean_html = clean_html[:12000]
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(page_html, 'html.parser')
+        clean_text = soup.get_text(separator=' ', strip=True)[:30000]
 
         prompt = f"""
-        Analyze the HTML content of the job post and evaluate if it matches the candidate profile.
+        Analyze the text content of the job post and evaluate if it matches the candidate profile.
         
-        Job HTML Content:
-        \"\"\"{clean_html}\"\"\"
+        Job Text Content:
+        \"\"\"{clean_text}\"\"\"
         
         Salary & Filtering Specs:
         {json.dumps(blueprint.get("filtering_rules", {}), indent=2)}
@@ -451,8 +526,8 @@ class GeminiJobAgent:
         prompt = f"""
         Given the following page HTML, identify the CSS selectors needed to fill in the applicant's details based on their resume profile contents.
         
-        Page HTML snippet:
-        \"\"\"{page_html[:10000]}\"\"\"
+        Job Posting HTML/Text:
+        \"\"\"{page_html[:30000]}\"\"\"
         
         Applicant Resume Contents:
         \"\"\"{resume_str[:10000]}\"\"\"
@@ -490,6 +565,8 @@ class GeminiJobAgent:
 
 def run_bulk_pipeline(
     search_query: str, 
+    location: str,
+    work_model: str,
     max_applications: int, 
     portals: List[str], 
     headless: bool, 
@@ -508,7 +585,7 @@ def run_bulk_pipeline(
             pass
 
     engine = PlaywrightBrowserEngine(headless=headless, user_data_dir=user_data_dir)
-    engine.log(f"Starting bulk pipeline. Query: '{search_query}', Max Applications: {max_applications}, Portals: {portals}")
+    engine.log(f"Iniciando proceso masivo. Búsqueda: '{search_query}', Max Applications: {max_applications}, Portals: {portals}")
     
     # 1. Load Blueprint
     try:
@@ -559,7 +636,7 @@ def run_bulk_pipeline(
         resume_data = profiles_dict.get(selected_cv, "")
         cv_keywords = agent.extract_keywords_from_cv(resume_data)
     else:
-        engine.log("AI Auto-Routing enabled. The agent will compare job postings against all CV profiles in the folder dynamically.")
+        engine.log("Auto-Ruteo IA activado. El agente comparará ofertas con todos los CV de la carpeta dinámicamente.")
         cv_keywords = []
     
     DISCOVERED_JOBS_PATH = "./workflows/checkpoints/discovered_jobs.json"
@@ -648,27 +725,48 @@ def run_bulk_pipeline(
                 if applied_count >= max_applications:
                     break
                     
-                engine.log(f"--- Executing search on portal: {portal} ---")
+                engine.log(f"--- Ejecutando búsqueda en portal: {portal} ---")
                 
-                search_url = ""
+                import urllib.parse
+                encoded_query = urllib.parse.quote_plus(search_query)
+                encoded_location = urllib.parse.quote_plus(location) if location else ""
+                
                 if portal == "LinkedIn":
-                    search_url = f"https://www.google.com/search?q=site:linkedin.com/jobs/view+%22{search_query.replace(' ', '+')}%22"
+                    search_url = f"https://www.linkedin.com/jobs/search/?keywords={encoded_query}"
+                    if encoded_location: search_url += f"&location={encoded_location}"
+                    if work_model == "Remote": search_url += "&f_WT=2"
+                    elif work_model == "Hybrid": search_url += "&f_WT=3"
+                    elif work_model == "On-site": search_url += "&f_WT=1"
                 elif portal == "Indeed":
-                    search_url = f"https://www.google.com/search?q=site:indeed.com/rc/clk+OR+site:indeed.com/viewjob+%22{search_query.replace(' ', '+')}%22"
+                    search_url = f"https://es.indeed.com/jobs?q={encoded_query}"
+                    if encoded_location: search_url += f"&l={encoded_location}"
+                    if work_model == "Remote": search_url += "&sc=0kf%3Aattr%28DSQF7%29%3B"
                 elif portal == "Glassdoor":
-                    search_url = f"https://www.google.com/search?q=site:glassdoor.com/Job/+%22{search_query.replace(' ', '+')}%22"
+                    search_url = f"https://www.google.com/search?q=site:glassdoor.com/job-listing+%22{search_query.replace(' ', '+')}%22"
                 else:
                     search_url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}+jobs"
                     
                 engine.navigate_to(search_url)
-                job_urls = engine.extract_job_urls(portal)
+                engine.check_login_wall()
+                snippets = engine.extract_job_snippets(portal)
                 
-                for idx, job_url in enumerate(job_urls):
+                # Fallback to Google if native portal blocked or returned 0
+                if len(snippets) == 0 and portal in ["LinkedIn", "Indeed"]:
+                    engine.log(f"Búsqueda nativa devolvió 0 resultados. Intentando Fallback en Google Search para {portal}...")
+                    if portal == "LinkedIn": fallback_url = f"https://www.google.com/search?q=site:linkedin.com/jobs/view+%22{search_query.replace(' ', '+')}%22"
+                    if portal == "Indeed": fallback_url = f"https://www.google.com/search?q=site:indeed.com/rc/clk+OR+site:indeed.com/viewjob+%22{search_query.replace(' ', '+')}%22"
+                    engine.navigate_to(fallback_url)
+                    snippets = engine.extract_job_snippets("Google")
+
+                valid_urls = agent.pre_filter_jobs(snippets, profiles_dict, location, work_model) if snippets else []
+                engine.log(f"Encontradas {len(valid_urls)} ofertas altamente compatibles en {portal} para procesar.")
+                
+                for job_url in valid_urls:
                     if applied_count >= max_applications:
                         engine.log(f"Application limit met ({max_applications}). Stopping execution.")
                         break
                         
-                    engine.log(f"Processing candidate job listing {idx+1}/{len(job_urls)}: {job_url}")
+                    engine.log(f"Processing job: {job_url}")
                     page_html = engine.navigate_to(job_url)
                     
                     # Dynamic Routing
@@ -702,7 +800,7 @@ def run_bulk_pipeline(
     finally:
         engine.close()
 
-    engine.log(f"Pipeline finished. Successfully submitted {applied_count} job applications.")
+    engine.log(f"Proceso finalizado. Postulaciones enviadas exitosamente: {applied_count} job applications.")
     return engine.log_history
 
 
