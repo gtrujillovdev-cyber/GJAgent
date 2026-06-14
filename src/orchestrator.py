@@ -185,34 +185,46 @@ class PlaywrightBrowserEngine:
 
     def extract_job_urls(self, portal: str) -> List[str]:
         """
-        Scrapes job listing links from the current search results page.
+        Scrapes job listing links from the current search results page (supports Google Search routing).
         """
         urls = []
         try:
-            self.log(f"Parsing job listing elements from {portal} results page...")
+            self.log(f"Parsing job listing elements from search page...")
             hrefs = self.page.evaluate('''() => {
                 return Array.from(document.querySelectorAll('a'))
-                    .map(anchor => anchor.href)
-                    .filter(href => href.includes('/jobs/view') || href.includes('/rc/clk') || href.includes('/partner/jobProject'));
+                    .map(anchor => anchor.href);
             }''')
             
             seen = set()
             for href in hrefs:
-                clean_href = href.split('?')[0]
-                if clean_href not in seen:
-                    seen.add(clean_href)
-                    urls.append(clean_href)
+                if portal == "LinkedIn" and "linkedin.com/jobs/view" in href:
+                    # Parse clean LinkedIn job URL
+                    clean_href = href
+                    if "?" in href:
+                        clean_href = href.split("?")[0]
+                    if clean_href not in seen:
+                        seen.add(clean_href)
+                        urls.append(clean_href)
+                elif portal == "Indeed" and ("indeed.com/rc/clk" in href or "indeed.com/viewjob" in href or "indeed.com/jobs" in href):
+                    if href not in seen:
+                        seen.add(href)
+                        urls.append(href)
+                elif portal == "Glassdoor" and "glassdoor.com" in href and "/Job/" in href:
+                    clean_href = href.split('?')[0]
+                    if clean_href not in seen:
+                        seen.add(clean_href)
+                        urls.append(clean_href)
             
-            self.log(f"Extracted {len(urls)} job listing URLs from page.")
+            self.log(f"Extracted {len(urls)} job listing URLs for {portal} from search page.")
         except Exception as e:
             self.log(f"Error extracting job links: {e}")
             
         if not urls:
-            self.log("No active elements found on public page. Generating simulated job links for demonstration...")
+            self.log("No active elements found on search page. Generating simulated job links for demonstration...")
             urls = [
-                f"https://careers.{portal.lower()}.com/jobs/senior-ai-engineer-101",
-                f"https://careers.{portal.lower()}.com/jobs/python-agentic-developer-204",
-                f"https://careers.{portal.lower()}.com/jobs/backend-systems-programmer-502"
+                f"https://careers.linkedin.com/jobs/senior-ai-engineer-101",
+                f"https://careers.linkedin.com/jobs/python-agentic-developer-204",
+                f"https://careers.linkedin.com/jobs/backend-systems-programmer-502"
             ]
         return urls
 
@@ -640,13 +652,13 @@ def run_bulk_pipeline(
                 
                 search_url = ""
                 if portal == "LinkedIn":
-                    search_url = f"https://www.linkedin.com/jobs/search/?keywords={search_query.replace(' ', '%20')}"
+                    search_url = f"https://www.google.com/search?q=site:linkedin.com/jobs/view+%22{search_query.replace(' ', '+')}%22"
                 elif portal == "Indeed":
-                    search_url = f"https://www.indeed.com/jobs?q={search_query.replace(' ', '%20')}"
+                    search_url = f"https://www.google.com/search?q=site:indeed.com/rc/clk+OR+site:indeed.com/viewjob+%22{search_query.replace(' ', '+')}%22"
                 elif portal == "Glassdoor":
-                    search_url = f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={search_query.replace(' ', '%20')}"
+                    search_url = f"https://www.google.com/search?q=site:glassdoor.com/Job/+%22{search_query.replace(' ', '+')}%22"
                 else:
-                    search_url = f"https://www.google.com/search?q={search_query.replace(' ', '%20')}+jobs"
+                    search_url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}+jobs"
                     
                 engine.navigate_to(search_url)
                 job_urls = engine.extract_job_urls(portal)
