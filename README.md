@@ -56,10 +56,14 @@ graph TD
 ├── profiles/
 │   └── resume_template.json    # Structured candidate profile details in JSON.
 ├── src/
-│   └── orchestrator.py         # Python runner implementing the Gemini Agent loop.
+│   ├── app.py                  # FastAPI Dashboard Server backend.
+│   ├── orchestrator.py         # Python runner implementing the Playwright & Gemini agent.
+│   └── templates/
+│       └── dashboard.html      # Premium Glassmorphic Frontend Control Panel.
 ├── workflows/
 │   └── monitor_config.json     # Telemetry and execution monitoring configurations.
 ├── .env.example                # Template for environment credentials.
+├── requirements.txt            # Project Python dependencies.
 └── README.md                   # Recruiter-oriented project documentation.
 ```
 
@@ -69,14 +73,13 @@ graph TD
 
 ### 1. Prerequisites / Requisitos
 * Python 3.10+
-* Playwright (optional, for browser automation rendering)
+* Playwright Browser Binaries
 * Gemini API Key ([Google AI Studio](https://aistudio.google.com/))
 
 ### 2. Install Dependencies / Instalar Dependencias
 ```bash
 pip install -r requirements.txt
-# or manually install genai sdk:
-pip install google-genai python-dotenv
+python -m playwright install chromium
 ```
 
 ### 3. Configure Credentials / Configurar Credenciales
@@ -90,11 +93,19 @@ GEMINI_API_KEY=your-actual-api-key
 GEMINI_MODEL=gemini-2.5-flash
 ```
 
-### 4. Running the Agent / Ejecutando el Agente
-To run the orchestrator in mock evaluation mode:
+### 4. Running the Dashboard (Control Panel UI) / Ejecutar el Panel de Control
+To run the Web Control Panel Dashboard (FastAPI + Glassmorphism UI):
 ```bash
-python src/orchestrator.py
+python src/app.py
 ```
+Then navigate to: `http://127.0.0.1:8000` to adjust settings, upload resumes dynamically, and trigger the agent loop!
+
+### 5. Running the Agent via CLI / Ejecutando el Agente por Consola
+To run the orchestrator directly from the command line:
+```bash
+python src/orchestrator.py --url "https://careers.example.com/jobs/senior-ai-engineer-102"
+```
+
 
 ---
 

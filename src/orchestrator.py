@@ -3,7 +3,8 @@
 Orchestrator for the Gemini Job Application Subagent.
 This script coordinates real browser automation using Playwright,
 Gemini API calls via the modern google-genai SDK,
-dynamic profile loading, and execution of the job application loop.
+dynamic profile loading (including PDFs and TXT files),
+and execution of the job application loop.
 """
 
 import os
@@ -12,7 +13,7 @@ import json
 import logging
 import re
 import argparse
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from dotenv import load_dotenv
 
 # Import Playwright for real browser automation
@@ -38,6 +39,23 @@ logging.basicConfig(
 logger = logging.getLogger("JobBotOrchestrator")
 
 
+def extract_text_from_pdf(pdf_path: str) -> str:
+    """
+    Extracts text contents from a PDF document using pypdf.
+    """
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(pdf_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() or ""
+        logger.info(f"Extracted {len(text)} characters of text from PDF: {pdf_path}")
+        return text
+    except Exception as e:
+        logger.error(f"Error parsing PDF file {pdf_path}: {e}")
+        return ""
+
+
 class PlaywrightBrowserEngine:
     """
     Real Playwright Browser Engine executing browser commands,
@@ -49,9 +67,14 @@ class PlaywrightBrowserEngine:
         self.playwright = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
+        self.log_history: List[str] = []
+
+    def log(self, message: str):
+        logger.info(message)
+        self.log_history.append(message)
 
     def start(self):
-        logger.info(f"Launching Playwright (Headless={self.headless}, UserDataDir={self.user_data_dir})")
+        self.log(f"Launching Playwright (Headless={self.headless}, UserDataDir={self.user_data_dir})")
         self.playwright = sync_playwright().start()
         # Using persistent context to preserve cookies and login tokens between runs
         self.context = self.playwright.chromium.launch_persistent_context(
@@ -63,36 +86,36 @@ class PlaywrightBrowserEngine:
         self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
 
     def navigate_to(self, url: str) -> str:
-        logger.info(f"Navigating to URL: {url}")
+        self.log(f"Navigating to URL: {url}")
         self.page.goto(url, wait_until="networkidle")
         # Extract clean visible body content to minimize token payload
         return self.page.content()
 
     def fill_form_field(self, selector: str, value: str) -> bool:
         try:
-            logger.info(f"Attempting to fill selector '{selector}' with value: '{value}'")
+            self.log(f"Attempting to fill selector '{selector}' with value: '{value}'")
             self.page.wait_for_selector(selector, timeout=5000)
             self.page.fill(selector, value)
             return True
         except Exception as e:
-            logger.warning(f"Could not fill selector {selector}: {e}")
+            self.log(f"Could not fill selector {selector}: {e}")
             return False
 
     def click_element(self, selector: str) -> bool:
         try:
-            logger.info(f"Attempting to click selector: {selector}")
+            self.log(f"Attempting to click selector: {selector}")
             self.page.wait_for_selector(selector, timeout=5000)
             self.page.click(selector)
             return True
         except Exception as e:
-            logger.warning(f"Could not click selector {selector}: {e}")
+            self.log(f"Could not click selector {selector}: {e}")
             return False
 
     def capture_screenshot(self, output_path: str = "./workflows/checkpoints/screen.png") -> str:
         # Ensure directories exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         self.page.screenshot(path=output_path)
-        logger.info(f"Screenshot successfully captured and saved to: {output_path}")
+        self.log(f"Screenshot successfully captured and saved to: {output_path}")
         return output_path
 
     def close(self):
@@ -100,7 +123,7 @@ class PlaywrightBrowserEngine:
             self.context.close()
         if self.playwright:
             self.playwright.stop()
-        logger.info("Browser engine terminated.")
+        self.log("Browser engine terminated.")
 
 
 class GeminiJobAgent:
@@ -161,7 +184,6 @@ class GeminiJobAgent:
             return json.loads(response.text.strip())
         except Exception as e:
             logger.error(f"Error calling Gemini API for job analysis: {e}")
-            # Dynamic fallback
             return {
                 "is_match": False,
                 "match_confidence": 0.0,
@@ -170,36 +192,21 @@ class GeminiJobAgent:
                 "detected_salary": "Unknown"
             }
 
-    def route_resume(self, job_title: str, blueprint: Dict[str, Any]) -> str:
-        """
-        Evaluates dynamic resume routing regex rules defined in the blueprint.
-        """
-        routing_rules = blueprint.get("dynamic_resume_routing", {})
-        rules = routing_rules.get("rules", [])
-        
-        for rule in rules:
-            regex = rule.get("role_regex", "")
-            if re.search(regex, job_title, re.IGNORECASE):
-                logger.info(f"Dynamic CV Match: '{job_title}' matched rule targeting path '{rule.get('resume_path')}'")
-                return rule.get("resume_path")
-                
-        default_path = routing_rules.get("default_resume_path", "profiles/resume_template.json")
-        logger.info(f"Dynamic CV Match: Using default resume path '{default_path}'")
-        return default_path
-
-    def fill_form_agentic(self, engine: PlaywrightBrowserEngine, resume_data: Dict[str, Any], page_html: str) -> bool:
+    def fill_form_agentic(self, engine: PlaywrightBrowserEngine, resume_data: Union[Dict[str, Any], str], page_html: str) -> bool:
         """
         Submits form fields by finding selectors dynamically via Gemini mapping.
         """
-        # Ask Gemini to map resume keys to form elements based on DOM HTML structure
+        # If resume_data is a dict, convert it to formatted string for Gemini prompt
+        resume_str = json.dumps(resume_data, indent=2) if isinstance(resume_data, dict) else str(resume_data)
+
         prompt = f"""
-        Given the following page HTML, identify the CSS selectors needed to fill in the applicant's details.
+        Given the following page HTML, identify the CSS selectors needed to fill in the applicant's details based on their resume profile contents.
         
         Page HTML snippet:
         \"\"\"{page_html[:12000]}\"\"\"
         
-        Applicant Resume:
-        {json.dumps(resume_data.get('personal_info', {}), indent=2)}
+        Applicant Resume Contents:
+        \"\"\"{resume_str[:12000]}\"\"\"
         
         Return a JSON response matching:
         {{
@@ -220,7 +227,7 @@ class GeminiJobAgent:
             )
             mapping = json.loads(response.text.strip())
             actions = mapping.get("actions", [])
-            logger.info(f"Gemini mapped {len(actions)} actions to execute.")
+            engine.log(f"Gemini mapped {len(actions)} actions to execute based on the resume.")
             
             for action in actions:
                 a_type = action.get("type")
@@ -232,23 +239,24 @@ class GeminiJobAgent:
                     engine.click_element(selector)
             return True
         except Exception as e:
-            logger.error(f"Failed to dynamically map/fill forms via Gemini: {e}")
+            engine.log(f"Failed to dynamically map/fill forms via Gemini: {e}")
             return False
 
 
-def run_pipeline(url: str, headless: bool, blueprint_path: str, user_data_dir: str):
+def run_pipeline(url: str, headless: bool, blueprint_path: str, user_data_dir: str, cv_path: str) -> List[str]:
     """
-    Main orchestrator execution pipeline using Playwright.
+    Main orchestrator execution pipeline using Playwright. Returns log history logs.
     """
-    logger.info("Starting production pipeline execution...")
+    engine = PlaywrightBrowserEngine(headless=headless, user_data_dir=user_data_dir)
+    engine.log("Starting production pipeline execution...")
     
     # 1. Load Blueprint and Configurations
     try:
         with open(blueprint_path, "r") as f:
             blueprint = json.load(f)
     except FileNotFoundError:
-        logger.error(f"Blueprint file not found at '{blueprint_path}'. Aborting.")
-        sys.exit(1)
+        engine.log(f"Blueprint file not found at '{blueprint_path}'. Aborting.")
+        return engine.log_history
 
     # 2. Load Env Credentials
     load_dotenv()
@@ -256,70 +264,84 @@ def run_pipeline(url: str, headless: bool, blueprint_path: str, user_data_dir: s
     model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     
     if not api_key:
-        logger.error("GEMINI_API_KEY environment variable is missing in .env. Aborting.")
-        sys.exit(1)
+        engine.log("GEMINI_API_KEY environment variable is missing in .env. Aborting.")
+        return engine.log_history
         
-    # 3. Initialize Gemini Agent & Browser Engine
+    # 3. Load CV Profile (Support PDF, JSON, and TXT formats)
+    if not os.path.exists(cv_path):
+        engine.log(f"Configured CV path '{cv_path}' missing. Aborting.")
+        return engine.log_history
+
+    engine.log(f"Loading candidate profile: {cv_path}")
+    if cv_path.lower().endswith(".pdf"):
+        resume_data = extract_text_from_pdf(cv_path)
+        if not resume_data:
+            engine.log("Could not extract any content from PDF CV.")
+            return engine.log_history
+    elif cv_path.lower().endswith(".json"):
+        with open(cv_path, "r") as f:
+            try:
+                resume_data = json.load(f)
+            except json.JSONDecodeError:
+                engine.log("Invalid JSON format in resume profile.")
+                return engine.log_history
+    else:
+        # Fallback to plain text reader
+        with open(cv_path, "r", encoding="utf-8", errors="ignore") as f:
+            resume_data = f.read()
+
+    # 4. Initialize Gemini Agent & Browser Engine
     agent = GeminiJobAgent(api_key=api_key, model_name=model_name)
-    engine = PlaywrightBrowserEngine(headless=headless, user_data_dir=user_data_dir)
     
     try:
         engine.start()
         
-        # 4. Navigate to target URL
+        # 5. Navigate to target URL
         page_html = engine.navigate_to(url)
         
-        # 5. Evaluate matching
+        # 6. Evaluate matching
         analysis = agent.analyze_job(page_html, blueprint)
-        logger.info(f"Analysis Results: {json.dumps(analysis, indent=2)}")
+        engine.log(f"Analysis Results: {json.dumps(analysis, indent=2)}")
         
         if not analysis.get("is_match", False):
-            logger.info("Job does not meet specifications. Skipping application submission.")
-            return
-
-        # 6. Route Resume Dynamic Selection
-        resume_path = agent.route_resume(analysis.get("detected_title", ""), blueprint)
-        if not os.path.exists(resume_path):
-            logger.warning(f"Routed resume path '{resume_path}' missing, falling back to 'profiles/resume_template.json'")
-            resume_path = "profiles/resume_template.json"
-            
-        with open(resume_path, "r") as f:
-            resume_data = json.load(f)
+            engine.log("Job does not meet specifications. Skipping application submission.")
+            return engine.log_history
 
         # 7. Apply agentic form filling
-        # Pass a current snapshot of the page HTML
         current_html = engine.page.content()
         success = agent.fill_form_agentic(engine, resume_data, current_html)
         
         if success:
-            # Capturing validation screen
             engine.capture_screenshot()
-            logger.info("Autonomous application run successfully completed!")
+            engine.log("Autonomous application run successfully completed!")
             
     except Exception as ex:
-        logger.exception(f"Fatal error encountered during agent execution: {ex}")
+        engine.log(f"Fatal error encountered during agent execution: {ex}")
     finally:
         engine.close()
 
+    return engine.log_history
+
 
 if __name__ == "__main__":
-    # Command line argument parser for CLI execution
     parser = argparse.ArgumentParser(description="Gemini Autonomous JobBot - Playwright Orchestrator")
     parser.add_argument("--url", type=str, default="https://careers.example.com/jobs/senior-ai-engineer-102",
                         help="Target job posting URL to analyze and apply for")
     parser.add_argument("--headless", action="store_true", default=False,
-                        help="Run browser context in headless background mode (default: False/headed)")
+                        help="Run browser context in headless background mode")
     parser.add_argument("--blueprint", type=str, default="blueprints/candidate_spec.json",
                         help="Path to JSON targeting blueprint configuration")
     parser.add_argument("--user-data-dir", type=str, default="./.browser_session",
                         help="Path to browser storage directory (maintains cookies/auth)")
+    parser.add_argument("--cv", type=str, default="profiles/resume_template.json",
+                        help="Path to dynamic CV document (PDF, JSON, or TXT)")
 
     args = parser.parse_args()
     
-    # Run the pipeline
     run_pipeline(
         url=args.url,
         headless=args.headless,
         blueprint_path=args.blueprint,
-        user_data_dir=args.user_data_dir
+        user_data_dir=args.user_data_dir,
+        cv_path=args.cv
     )

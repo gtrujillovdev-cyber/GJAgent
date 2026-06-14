@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeminiJobBot | Control Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --glass-bg: rgba(17, 25, 40, 0.65);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --accent-glow: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            --text-color: #f3f4f6;
+            --text-muted: #9ca3af;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        header {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: var(--accent-glow);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid var(--success);
+            color: #34d399;
+            padding: 0.4rem 1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        main {
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            border-left: 4px solid #3b82f6;
+            padding-left: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            padding: 0.8rem 1rem;
+            border-radius: 12px;
+            color: var(--text-color);
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1rem;
+        }
+
+        .checkbox-tile {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 0.8rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-tile:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .checkbox-tile input {
+            accent-color: #3b82f6;
+            width: 1.1rem;
+            height: 1.1rem;
+        }
+
+        .btn {
+            background: var(--accent-glow);
+            color: #0b0f19;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            font-weight: 800;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            opacity: 0.95;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-color);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .cv-upload-zone {
+            border: 2px dashed var(--glass-border);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .cv-upload-zone:hover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.03);
+        }
+
+        .cv-upload-zone p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .console-log {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 1.2rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+            height: 350px;
+            overflow-y: auto;
+            color: #34d399;
+            white-space: pre-wrap;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .cv-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .cv-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 0.6rem 1rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+        }
+
+        .cv-item span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 200px;
+        }
+
+        .cv-badge {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            padding: 0.15rem 0.4rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h1>GeminiJobBot</h1>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Autonomous Job Application Subagent</p>
+        </div>
+        <div class="status-badge" id="bot-status">Agent Engine Ready</div>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>Search and Filtering Settings</h2>
+            
+            <div class="checkbox-group">
+                <label class="checkbox-tile">
+                    <input type="checkbox" name="portals" value="LinkedIn" checked>
+                    <span>LinkedIn</span>
+                </label>
+                <label class="checkbox-tile">
+                    <input type="checkbox" name="portals" value="Indeed" checked>
+                    <span>Indeed</span>
+                </label>
+                <label class="checkbox-tile">
+                    <input type="checkbox" name="portals" value="Glassdoor">
+                    <span>Glassdoor</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>Target Job URL to Process</label>
+                <input type="text" id="target-url" placeholder="https://linkedin.com/jobs/view/..." value="https://careers.example.com/jobs/senior-ai-engineer-102">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="form-group">
+                    <label>Minimum Salary (USD/Year)</label>
+                    <input type="number" id="min-salary" value="130000">
+                </div>
+                <div class="form-group">
+                    <label>Experience Range (Years)</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="number" id="exp-min" value="4" style="width: 80px;">
+                        <span>to</span>
+                        <input type="number" id="exp-max" value="12" style="width: 80px;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Excluded Keywords (Comma Separated)</label>
+                <input type="text" id="excluded-keywords" value="No sponsor, Requires Security Clearance, Internship, Junior, Entry Level">
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn" style="flex: 1;" id="btn-save" onclick="saveSettings()">Save Configurations</button>
+                <button class="btn" style="flex: 1; background: var(--accent-glow);" id="btn-run" onclick="runAgent()">Start Subagent Execution</button>
+            </div>
+        </section>
+
+        <div style="display: flex; flex-direction: column; gap: 2rem;">
+            <section class="card">
+                <h2>Resume CV Profiles</h2>
+                <div class="form-group">
+                    <label>Active CV Document Guide</label>
+                    <select id="active-cv">
+                        <option value="profiles/resume_template.json">resume_template.json (Default Template)</option>
+                    </select>
+                </div>
+
+                <div class="cv-list" id="cv-items-container">
+                    <!-- CV files dynamic list -->
+                </div>
+
+                <div class="cv-upload-zone" onclick="document.getElementById('cv-file-input').click()">
+                    <input type="file" id="cv-file-input" style="display: none;" onchange="uploadCV(event)">
+                    <p style="font-weight: 600; font-size: 1rem;">Drop PDF / TXT CV here</p>
+                    <p>Or click to browse from system</p>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Execution Console logs</h2>
+                <div class="console-log" id="console">
+[System] Dashboard console initialized. Setup parameters above and run the subagent.
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        // Load initial settings and CVs on load
+        window.onload = function() {
+            loadConfig();
+            loadCVs();
+        };
+
+        function addLog(message, isErr = false) {
+            const consoleDiv = document.getElementById("console");
+            const entry = document.createElement("div");
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            if (isErr) entry.style.color = '#ef4444';
+            consoleDiv.appendChild(entry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                
+                document.getElementById('min-salary').value = data.filtering_rules.minimum_salary_usd;
+                document.getElementById('exp-min').value = data.filtering_rules.experience_years_range.min;
+                document.getElementById('exp-max').value = data.filtering_rules.experience_years_range.max;
+                document.getElementById('excluded-keywords').value = data.filtering_rules.forbidden_keywords.join(', ');
+                
+                addLog("Configurations successfully loaded from candidate_spec.json.");
+            } catch (err) {
+                addLog("Failed to load initial configuration values.", true);
+            }
+        }
+
+        async function loadCVs() {
+            try {
+                const res = await fetch('/api/cvs');
+                const files = await res.json();
+                const container = document.getElementById('cv-items-container');
+                const select = document.getElementById('active-cv');
+                
+                container.innerHTML = '';
+                select.innerHTML = '';
+                
+                files.forEach(file => {
+                    // Dropdown
+                    const opt = document.createElement('option');
+                    opt.value = `profiles/${file.name}`;
+                    opt.textContent = `${file.name} (${file.type.toUpperCase()})`;
+                    select.appendChild(opt);
+                    
+                    // List
+                    const item = document.createElement('div');
+                    item.className = 'cv-item';
+                    item.innerHTML = `
+                        <span>${file.name}</span>
+                        <div class="cv-badge">${file.type.toUpperCase()}</div>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (err) {
+                addLog("Could not fetch loaded CV listings.", true);
+            }
+        }
+
+        async function saveSettings() {
+            const minSalary = parseInt(document.getElementById('min-salary').value);
+            const expMin = parseInt(document.getElementById('exp-min').value);
+            const expMax = parseInt(document.getElementById('exp-max').value);
+            const keywords = document.getElementById('excluded-keywords').value.split(',').map(k => k.trim());
+            
+            const payload = {
+                minimum_salary_usd: minSalary,
+                experience_years_range: { min: expMin, max: expMax },
+                forbidden_keywords: keywords
+            };
+            
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    addLog("Targeting settings updated successfully.");
+                } else {
+                    addLog("Failed to update configurations.", true);
+                }
+            } catch (err) {
+                addLog("Network error updating configurations.", true);
+            }
+        }
+
+        async function uploadCV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            addLog(`Uploading file '${file.name}' to profile parser...`);
+            
+            try {
+                const res = await fetch('/api/cvs/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (res.ok) {
+                    addLog(`File '${file.name}' successfully parsed and matched into profiles.`);
+                    loadCVs();
+                } else {
+                    addLog("Error uploading profile file.", true);
+                }
+            } catch (err) {
+                addLog("Upload connection failed.", true);
+            }
+        }
+
+        async function runAgent() {
+            const url = document.getElementById('target-url').value;
+            const cvPath = document.getElementById('active-cv').value;
+            
+            document.getElementById('bot-status').textContent = 'Agent Executing...';
+            document.getElementById('bot-status').style.borderColor = '#3b82f6';
+            document.getElementById('bot-status').style.color = '#3b82f6';
+            document.getElementById('bot-status').style.background = 'rgba(59, 130, 246, 0.15)';
+            
+            addLog(`Triggering Playwright pipeline for job: ${url}`);
+            addLog(`Using Active CV Document: ${cvPath}`);
+            
+            try {
+                const res = await fetch('/api/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, cv_path: cvPath })
+                });
+                const result = await res.json();
+                
+                if (res.ok) {
+                    addLog(`Success: ${result.message}`);
+                    if (result.logs) {
+                        result.logs.forEach(l => addLog(l));
+                    }
+                } else {
+                    addLog(`Execution failed: ${result.detail}`, true);
+                }
+            } catch (err) {
+                addLog("Agent execution loop request failed.", true);
+            } finally {
+                document.getElementById('bot-status').textContent = 'Agent Engine Ready';
+                document.getElementById('bot-status').style.borderColor = '#10b981';
+                document.getElementById('bot-status').style.color = '#34d399';
+                document.getElementById('bot-status').style.background = 'rgba(16, 185, 129, 0.15)';
+            }
+        }
+    </script>
+</body>
+</html>
