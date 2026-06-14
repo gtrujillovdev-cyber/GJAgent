@@ -100,8 +100,84 @@ class PlaywrightBrowserEngine:
 
     def navigate_to(self, url: str) -> str:
         self.log(f"Navigating to: {url}")
+        
+        # Check if it's a simulated demonstration URL
+        if "careers.linkedin.com/jobs/" in url or "careers.indeed.com/jobs/" in url:
+            self.log("Simulated URL detected. Serving mock job HTML page for demonstration.")
+            if "senior-ai-engineer-101" in url:
+                mock_html = """
+                <html>
+                <head><title>Senior AI Engineer - Job Posting</title></head>
+                <body>
+                    <div id="job-details">
+                        <h1>Senior AI Engineer</h1>
+                        <p><strong>Company:</strong> Autonomous Systems Corp</p>
+                        <p><strong>Salary Range:</strong> €110,000 - €130,000 per year</p>
+                        <p><strong>Description:</strong> We are looking for a Senior AI Engineer to join our agentic workflows team. You will build autonomous LLM agents, connect them using modern APIs, and orchestrate browser sessions.</p>
+                        <p><strong>Keywords:</strong> Python, Playwright, Docker, LLMs, FastAPI, Agentic Frameworks, Linux, SDET</p>
+                    </div>
+                    <form id="apply-form" style="margin-top: 20px; border: 1px solid #ccc; padding: 20px;">
+                        <h3>Quick Apply Form</h3>
+                        <div class="field"><label>Full Name:</label> <input type="text" id="name" name="fullname" placeholder="John Doe"></div>
+                        <div class="field"><label>Email:</label> <input type="text" id="email" name="email" placeholder="john@example.com"></div>
+                        <div class="field"><label>Phone:</label> <input type="text" id="phone" name="phone" placeholder="+34 600 000 000"></div>
+                        <div class="field"><label>Expected Salary:</label> <input type="text" id="salary" name="salary" placeholder="120000"></div>
+                        <button type="submit" id="submit-btn" style="margin-top: 10px;">Submit Application</button>
+                    </form>
+                </body>
+                </html>
+                """
+            elif "python-agentic-developer-204" in url:
+                mock_html = """
+                <html>
+                <head><title>Python Agentic Developer - Job Posting</title></head>
+                <body>
+                    <div id="job-details">
+                        <h1>Python Agentic Developer</h1>
+                        <p><strong>Company:</strong> Agentic AI Labs</p>
+                        <p><strong>Salary Range:</strong> €90,000 - €105,000 per year</p>
+                        <p><strong>Description:</strong> Join us to develop advanced AI subagents, tool-calling systems, and browser pipelines using Python and Google Gemini models.</p>
+                        <p><strong>Keywords:</strong> Python, Docker, LangChain, CI/CD, Automation, Testing, LLMs, FastAPI</p>
+                    </div>
+                    <form id="apply-form" style="margin-top: 20px; border: 1px solid #ccc; padding: 20px;">
+                        <h3>Quick Apply Form</h3>
+                        <div class="field"><label>Full Name:</label> <input type="text" id="name" name="fullname" placeholder="John Doe"></div>
+                        <div class="field"><label>Email:</label> <input type="text" id="email" name="email" placeholder="john@example.com"></div>
+                        <div class="field"><label>Phone:</label> <input type="text" id="phone" name="phone" placeholder="+34 600 000 000"></div>
+                        <div class="field"><label>Expected Salary:</label> <input type="text" id="salary" name="salary" placeholder="95000"></div>
+                        <button type="submit" id="submit-btn" style="margin-top: 10px;">Submit Application</button>
+                    </form>
+                </body>
+                </html>
+                """
+            else: # backend-systems-programmer-502
+                mock_html = """
+                <html>
+                <head><title>Backend Systems Programmer - Job Posting</title></head>
+                <body>
+                    <div id="job-details">
+                        <h1>Backend Systems Programmer</h1>
+                        <p><strong>Company:</strong> Core Systems Ltd</p>
+                        <p><strong>Salary Range:</strong> €70,000 - €85,000 per year</p>
+                        <p><strong>Description:</strong> We are hiring a backend programmer to build high-performance systems. Skills in Linux, Python, Bash, and CI/CD are required.</p>
+                        <p><strong>Keywords:</strong> Linux, QA, SDET, Python, Docker, Bash, Swift, CI/CD, Testing</p>
+                    </div>
+                    <form id="apply-form" style="margin-top: 20px; border: 1px solid #ccc; padding: 20px;">
+                        <h3>Quick Apply Form</h3>
+                        <div class="field"><label>Full Name:</label> <input type="text" id="name" name="fullname" placeholder="John Doe"></div>
+                        <div class="field"><label>Email:</label> <input type="text" id="email" name="email" placeholder="john@example.com"></div>
+                        <div class="field"><label>Phone:</label> <input type="text" id="phone" name="phone" placeholder="+34 600 000 000"></div>
+                        <div class="field"><label>Expected Salary:</label> <input type="text" id="salary" name="salary" placeholder="75000"></div>
+                        <button type="submit" id="submit-btn" style="margin-top: 10px;">Submit Application</button>
+                    </form>
+                </body>
+                </html>
+                """
+            # Load mock content directly into the Playwright page object
+            self.page.set_content(mock_html)
+            return mock_html
+
         try:
-            # Shortened timeout to 6000ms to fail fast on blocked/throttled portal pages
             self.page.goto(url, wait_until="networkidle", timeout=6000)
         except Exception as e:
             self.log(f"Navigation ended or timed out: {e}")
