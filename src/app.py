@@ -45,7 +45,7 @@ class RunAgentRequest(BaseModel):
 
 class ApiKeyUpdate(BaseModel):
     gemini_api_key: str
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-3.5-flash"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -150,7 +150,7 @@ def get_api_key():
     """
     load_dotenv()
     key = os.getenv("GEMINI_API_KEY", "")
-    model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
     if len(key) > 8:
         masked = key[:4] + "..." + key[-4:]
     else:
